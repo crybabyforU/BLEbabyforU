@@ -1,0 +1,1 @@
+../../tools/sweyntooth_bluetooth_low_energy_attacks/extras/non_compliance_dhcheck_skip.py

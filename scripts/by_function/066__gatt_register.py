@@ -1,0 +1,1 @@
+../../tools/ZEPHYR/pylol/connect-gatt-char.py

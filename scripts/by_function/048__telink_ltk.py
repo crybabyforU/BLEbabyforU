@@ -1,0 +1,1 @@
+../../tools/sweyntooth_bluetooth_low_energy_attacks/Telink_zero_ltk_installation.py

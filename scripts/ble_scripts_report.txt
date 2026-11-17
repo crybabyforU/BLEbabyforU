@@ -1,0 +1,92 @@
+================================================================================
+                    BLE LAB PYTHON SCRIPTS ANALYSIS REPORT
+================================================================================
+
+1_build_packet.py
+Functionality: Constructs and computes a byte-exact 36-byte BLE Link Layer CONNECT_IND packet with custom Access Address, CRC, and LLData fields.
+BLE Attack Use: Used in packet crafting and fuzzing by generating custom, malformed, or arbitrary connection packets for injection.
+
+2_send_packet.py
+Functionality: Establishes a live BLE connection to a target peripheral using user-defined Link Layer parameters via WHAD/ButteRFly hardware.
+BLE Attack Use: Used in connection spoofing and rogue central attacks to force custom Access Addresses, intervals, and channel maps onto a peripheral.
+
+4_inject_raw.py
+Functionality: Arms a WHAD hardware injector to listen for target ADV_IND packets and reactively transmit a crafted raw CONNECT_IND within the inter-frame space.
+BLE Attack Use: Used in reactive Link Layer injection and connection hijacking attacks to preemptively seize control of a target device.
+
+5_scan_then_inject.py
+Functionality: Scans first to verify active advertising from a target peripheral before releasing the interface and arming reactive CONNECT_IND injection triggers.
+BLE Attack Use: Used in synchronized hijacking attacks by confirming peripheral availability and state prior to firing connection injection payloads.
+
+6_scan_inject_final.py
+Functionality: Continuously scans and maintains radio receiver mode while arming multiple AdvA-matched triggers to inject a custom CONNECT_IND packet on-air.
+BLE Attack Use: Used for low-latency Link Layer race condition attacks and connection interception without dongle reinitialization overhead.
+
+7_connect_lifecycle.py
+Functionality: Injects a custom CONNECT_IND packet upon advertisement detection and monitors the advertising silence window to measure connection duration.
+BLE Attack Use: Serves as an attack oracle to verify target acceptance of rogue/malformed connection packets and measure connection survival time.
+
+8_trigger_sweep.py
+Functionality: Verifies hardware trigger mechanics and sweeps AdvA pattern byte offsets (0-30) against advertising packets to detect connection silence.
+BLE Attack Use: Used for calibration and exploit tuning to find exact hardware injector offsets required for reliable reactive packet delivery.
+
+10_prepare_rootcause.py
+Functionality: Tests dongle raw injection capabilities using manual and reception triggers with Scapy BTLE_DATA wrappers to evaluate literal packet transmission.
+BLE Attack Use: Used to diagnose hardware firmware limitations and validate whether a transmitter can inject arbitrary Link Layer attack frames.
+
+11_max_fidelity.py
+Functionality: Sets a custom initiator BD_ADDR, tests raw packet transmission, and initiates a full-fidelity connection using custom Link Layer parameters.
+BLE Attack Use: Used for central identity spoofing (cloning MAC, Access Address, and channel map) to impersonate trusted centrals and enumerate services.
+
+12_ab_diagnose.py
+Functionality: Performs A/B comparative connection testing between standard parameters and custom Link Layer timings (interval, hop increment).
+BLE Attack Use: Used to identify peripheral firmware tolerances, parameter boundary flaws, and connection drop triggers caused by non-compliant parameters.
+
+13_death_autopsy.py
+Functionality: Establishes connections to capture incoming Link Layer control PDUs, data PDUs, and HCI termination codes during idle connection states.
+BLE Attack Use: Used for post-exploit root-cause analysis and crash diagnostics to record exact teardown reasons (e.g., LL_TERMINATE_IND codes).
+
+14_mtu_responder.py
+Functionality: Listens for incoming Link Layer ATT_EXCHANGE_MTU_REQ data frames and immediately dispatches a raw ATT MTU exchange response.
+BLE Attack Use: Used to keep rogue connections alive by preventing peripherals from terminating custom/spoofed links due to unhandled MTU timeouts.
+
+15_manual_att.py
+Functionality: Implements a standalone ATT protocol exchange directly over raw L2CAP data PDUs, bypassing the host operating system's GATT stack.
+BLE Attack Use: Used for low-level ATT fuzzing and attribute tampering below the OS stack to probe unauthenticated services and malformed ATT opcodes.
+
+ble_busy.py
+Functionality: Initiates rapid, repetitive BLE connection requests with short timeouts in an infinite loop using the Bleak library.
+BLE Attack Use: Used to execute a BLE Link Layer Denial-of-Service (DoS) and channel saturation attack, blocking legitimate centrals from connecting.
+
+pairing_req_multiple.py
+Functionality: Fires rapid pairing/connection requests until the first successful connect, then holds that single link stable and silently reconnects if the device drops it.
+BLE Attack Use: Used to starve the target's pairing/connection slots so legitimate centrals and re-pairing attempts fail (authorized targets only).
+
+ble_connection_time_checker.py
+Functionality: Continuously establishes BLE connections and logs precise timestamps to track active connection durations and disconnect events.
+BLE Attack Use: Used as an uptime and crash-detection monitor to observe device resets, watchdog reboots, or instability under attack conditions.
+
+getting-all-details-of-ble.py
+Functionality: Connects to a target BLE device to enumerate all GATT services, characteristics, descriptor handles, properties, and readable values.
+BLE Attack Use: Used for pre-attack reconnaissance to map out exposed attack surfaces, locate writable attributes, and extract unencrypted device data.
+
+oooooooooooo.py
+Functionality: Combines custom CONNECT_IND packet generation with an automated length-field truncation fuzzer against advertising targets.
+BLE Attack Use: Used to trigger Link Layer buffer underflow and memory corruption DoS attacks (e.g., SweynTooth CC2540 CVE-2019-19194).
+
+own_packet_full.py
+Functionality: Comprehensive automated pipeline that audits dongle setup, scans targets, injects custom CONNECT_IND packets, and patches MTU responses.
+BLE Attack Use: Serves as a full rogue central exploit framework to commandeer BLE peripherals with arbitrary Link Layer parameters and extract GATT data.
+
+read_descriptors.py
+Functionality: Connects to a specific target peripheral to read and display raw byte and ASCII content from explicit GATT descriptor handles (19, 22).
+BLE Attack Use: Used for targeted descriptor data extraction and verifying improper access controls or descriptor handling vulnerabilities on fixed handles.
+
+sweyntooth_crash.py
+Functionality: Generates and injects multiple SweynTooth malformed CONNECT_IND test vectors (truncated lengths, zero interval/timeout, zero hop, oversized length).
+BLE Attack Use: Directly executes known Link Layer crash exploits to cause SoC firmware crashes, deadlocks, and hardware resets on vulnerable BLE devices.
+
+thor.py
+Functionality: Automated reconnaissance and GATT write fuzzer with MTU negotiation, notification capture, and checkpoint-backed payload-length probing.
+BLE Attack Use: Used to fuzz writable characteristics with boundary and oversized payloads to discover firmware buffer overflows and write-handling crashes.
+================================================================================

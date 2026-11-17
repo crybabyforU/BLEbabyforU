@@ -1,0 +1,1323 @@
+================================================================================
+              BLE LAB - HOW TO USE THE SCRIPTS (PRACTICAL GUIDE)
+================================================================================
+This file explains, in plain language, how to actually run everything in this
+folder. It is based on a full read of:
+
+  run-all-ble.sh              (wrapper)
+  run-all-ble-no-whad.sh      (wrapper, no WHAD stage)
+  scripts/run_all_ble.py      (the orchestrator)
+  scripts/check.sh            (environment doctor)
+  scripts/*.py                (core scripts; section 13 lists all 67 steps)
+  ALL_SCRIPTS_ATTACKS.txt     (master one-line inventory)
+  BLE_ATTACK_SCRIPTS_LIST.txt (one-line inventory + quick attack map)
+  BLE_SCRIPTS.txt             (BLE-only list + hardware)
+  CLASSIC_BR_EDR_SCRIPTS.txt  (classic BR/EDR list)
+  HARDWARE_REQUIRED.txt       (device / firmware reference)
+  SCRIPTS_FULL_DETAILS.txt    (per-script PATH/TYPE/WHAT/USE/DEVICE/DEPS/OUTPUT)
+
+If anything here disagrees with a script, the script is the source of truth.
+                                   !
+WARNING: most of these scripts are DoS / crash / exploit tooling. Only run them
+against a device you own or have explicit written permission to test.
+================================================================================
+
+
+--------------------------------------------------------------------------------
+ 0. QUICK START (the 5 commands you need)
+--------------------------------------------------------------------------------
+cd ~/ble-lab
+
+./scripts/check.sh                  # 1. is the machine ready?
+./run-all-ble.sh --hw-check         # 2. which dongles are actually plugged in?
+./run-all-ble.sh -l                 # 3. catalogue of all 67 scripts
+                                    #    (every step + exact commands: section 13)
+./run-all-ble.sh --profile safe --target <TARGET_MAC>
+./run-all-ble.sh --profile iot-ble --target <TARGET_MAC> --yes
+
+The lab's default target is C0:00:00:41:73:AC (device name MDT2410161).
+Replace it with your own device's MAC everywhere below.
+
+
+--------------------------------------------------------------------------------
+ 1. WHAT IS IN THIS FOLDER
+--------------------------------------------------------------------------------
+  run-all-ble.sh              wrapper: runs scripts/run_all_ble.py with the
+                              lab venv. This is the normal entry point.
+  run-all-ble-no-whad.sh      same runner, but forces profile "no-whad" and
+                              skips the whole "whad" stage. Needs no WHAD
+                              package and no ButteRFly dongle.
+  scripts/run_all_ble.py      the orchestrator: orders the tests, checks
+                              hardware, streams output, writes logs/summaries,
+                              and prints the exact failing function/line.
+  scripts/check.sh            environment doctor (13 checks).
+  scripts/1_build_packet.py   ...the actual lab scripts (see section 5).
+  scripts/pycompat/           Python 3.10 shim for the old bundled Scapy used
+                              by SweynTooth (sitecustomize.py).
+  ble-runs/<timestamp>/       one folder per real run: runner.log,
+                              summary.json, summary.md, logs/, work/.
+  crybabyforu/                a portable copy of the lab (runner + scripts +
+                              the tools the BLE runner uses). Its README and
+                              SCRIPTS_BY_FUNCTION.md are useful too, but note:
+                              scripts/check.sh still points at ~/ble-lab.
+
+Reference text files (read-only documentation, nothing executes them):
+  ALL_SCRIPTS_ATTACKS.txt      every script: TYPE | ATTACK | one line | device
+  BLE_ATTACK_SCRIPTS_LIST.txt  BLE scripts: script | attack type | what it does
+  BLE_SCRIPTS.txt              BLE-only list: script | category | what | device
+  CLASSIC_BR_EDR_SCRIPTS.txt   classic BR/EDR scripts and YAML modules
+  HARDWARE_REQUIRED.txt        what each dongle/board is and how to flash it
+  SCRIPTS_FULL_DETAILS.txt     long per-script breakdown (USE/DEPS/OUTPUT)
+  RUNNER_README.md             full runner manual (profiles, artifacts, fixes)
+  SCRIPTS_MASTER_REPORT.md     earlier overall report
+
+
+--------------------------------------------------------------------------------
+ 2. BEFORE YOU RUN ANYTHING
+--------------------------------------------------------------------------------
+2.1 Python environment
+    The wrappers use, in order:
+      ~/ble-lab/venv/bin/python
+      $PYTHON  or  python3
+    Check it works:
+      ~/ble-lab/venv/bin/python -V
+      ~/ble-lab/venv/bin/python -c "import whad, bleak, serial; print('ok')"
+
+2.2 Environment doctor
+      cd ~/ble-lab
+      ./scripts/check.sh
+    It checks (13 items): ButteRFly USB c0ff:eeee, /dev/ttyACM0, serial
+    permission, ModemManager stopped, uucp group, Python "whad", Sniffle
+    package, Sniffle extcap file, SweynTooth bundled Scapy import, arm-none-
+    eabi-gcc, wireshark, nrfutil, wble-central.
+    Exit code = number of FAILs. A FAIL for a dongle that is not plugged in is
+    normal for host-only work; the runner reports check.sh problems as WARN.
+
+2.3 Serial-port ownership (nRF52840 / TI boards)
+      sudo systemctl stop ModemManager
+      sudo systemctl disable ModemManager      # optional, persistent
+      groups | grep -q uucp && echo in-uucp
+    If your user is not in uucp, add it and log out/in:
+      sudo usermod -aG uucp "$USER"
+    Without this you get "Device or resource busy" / permission errors.
+
+2.4 Knowledge of your target
+    Confirm the MAC and address type first. ble_busy, getting-all-details and
+    thor are bleak/BlueZ scripts; the WHAD scripts need to know whether the
+    target advertises a public or random address (see --public below).
+
+2.5 Authorization
+    DoS / fuzz / crash steps are marked destructive. The runner refuses to run
+    them unless you pass --yes (or type "I OWN THE TARGET" at a TTY).
+    Exit code 3 means authorization was refused.
+
+
+--------------------------------------------------------------------------------
+ 3. HARDWARE TAGS USED EVERYWHERE
+--------------------------------------------------------------------------------
+  OFFLINE     no radio at all (pure Python, e.g. packet builder)
+  HOST        normal host BLE adapter via BlueZ + bleak (hci0)
+  HOST-BR     host BR/EDR (classic) adapter
+  DONGLE      WHAD ButteRFly nRF52840 USB dongle (USB c0ff:eeee)
+  NRF52-ST    nRF52840 + SweynTooth driver firmware
+              (detected as Nordic 1915, WHAD c0ff:eeee, or Adafruit 239a
+               "Bluefruit nRF52840"; serial must exist, e.g. /dev/ttyACM0)
+  SNIFFLE     TI CC1352 / CC26x2 Launchpad + Sniffle firmware
+  ZEPHYR-HCI  nRF52840 + ZEPHYR USB-HCI firmware (usually hci1)
+  ESP32       ESP32 + Braktooth firmware (classic)
+  NEXUS5      rooted Nexus 5 / CYW20735 + InternalBlue (classic)
+  MICROBIT    micro:bit / nRF52 + Btlejack firmware
+  BLUING      CSR8510 + Bluing firmware (classic recon)
+  TARGET      the device under test
+
+IMPORTANT: one nRF52840 cannot run two firmwares at once.
+  whad stage        -> ButteRFly firmware
+  sweyntooth stage  -> SweynTooth driver firmware
+  zephyr stage      -> ZEPHYR USB-HCI firmware
+  With one dongle you must re-flash between stages. With two, point
+  --nrf-port at the SweynTooth one. The runner warns about this per stage.
+
+Typical lab: 1x host adapter, 1x WHAD ButteRFly nRF52840, 1x second nRF52840
+(or re-flash), 1x TI Launchpad for Sniffle (optional but recommended), 1x
+target device.
+
+
+--------------------------------------------------------------------------------
+ 4. THE EASY WAY: THE ORCHESTRATOR
+--------------------------------------------------------------------------------
+4.1 The wrappers
+      cd ~/ble-lab
+      ./run-all-ble.sh              [options]   # everything
+      ./run-all-ble-no-whad.sh      [options]   # everything except WHAD
+    You can also call the Python directly:
+      ~/ble-lab/venv/bin/python scripts/run_all_ble.py [options]
+
+4.2 First three safe commands (no hardware touched)
+      ./run-all-ble.sh --hw-check
+      ./run-all-ble.sh --list
+      ./run-all-ble.sh -l
+
+    --hw-check   full hardware/dongle report (what is FOUND / MISSING and how
+                 many steps need each tag) and then exits.
+    --list       the ordered plan for the selected profile, with hardware,
+                 timeout and flags, then exits.
+    -l           the catalogue: number, step id, two-word function, hardware.
+    --list-all   every manifest step, including ones filtered out.
+
+4.3 Profiles
+    | profile     | stages that run                                             |
+    |-------------|-------------------------------------------------------------|
+    | safe        | doctor -> offline -> recon                                  |
+    | recon       | doctor -> offline -> recon -> sniffle                       |
+    | whad        | doctor -> offline -> whad                                   |
+    | no-whad     | doctor -> offline -> recon -> sniffle -> host ->            |
+    |             | sweyntooth -> zephyr                                        |
+    | sweyntooth  | doctor -> offline -> sweyntooth                             |
+    | iot-ble     | doctor -> offline -> recon -> sniffle -> whad -> host ->    |
+    |             | sweyntooth           (default profile)                      |
+    | all         | iot-ble + zephyr                                            |
+
+    Stage meaning:
+      doctor     scripts/check.sh environment checks (soft-fail = WARN)
+      offline    1_build_packet.py packet build (no radio)
+      recon      GATT enumeration / descriptor read / thor explore (HOST)
+      sniffle    Sniffle version, scan, pcap capture (TI board)
+      whad       WHAD link-layer suite (ButteRFly dongle)
+      host       uptime monitor, connection DoS, thor write fuzzer (HOST)
+      sweyntooth 13 main + 12 extra SweynTooth PoCs (NRF52-ST)
+      zephyr     ZEPHYR HCI adapter tests (ZEPHYR-HCI)
+
+4.4 Run one numbered script
+      ./run-all-ble.sh -l                     # find the number
+      ./run-all-ble.sh -N 2 --yes             # run catalogue entry 2
+      ./run-all-ble.sh -N 15 --yes            # one WHAD script
+      ./run-all-ble.sh -N 15 --yes --force    # even if dongle not detected
+
+    The numbers are stable for one invocation because -l and -N share the same
+    list. The normal runner lists 67 entries (including duplicates and
+    optional tools). run-all-ble-no-whad.sh adds --skip-stage whad, so its -l
+    lists only 49 entries and its -N numbers refer to that 49-entry list.
+
+4.5 Common runner flags
+      --target MAC           target device (default C0:00:00:41:73:AC)
+      --profile NAME         choose a profile (table above)
+      --stage NAME           run only this stage; repeatable
+      --skip-stage NAME      skip a stage; repeatable
+      --only GLOB            run only matching step ids/script names; repeatable
+      --skip GLOB            skip matching steps; repeatable
+      --include CLASS        include normally filtered steps:
+                             destructive | long | duplicates | optional |
+                             interactive  (duplicates adds whadbro/knob_test)
+      --whad-port uart0      WHAD logical port (NOT /dev/ttyACM0)
+      --nrf-port DEV         serial port for SweynTooth PoCs (default: auto)
+      --sniffle-port DEV     serial port for the TI Launchpad (default: auto)
+      --python PATH          interpreter used for the child scripts
+      --timeout N            default per-script timeout in seconds (120)
+      --stop-on-fail         stop after the first FAIL/TIMEOUT
+      --quiet                do not stream child output (failures still shown)
+      --dry-run              check hardware and print commands, run nothing
+      --yes / -y             confirm authorization for destructive steps
+      --force                run a step even when its hardware is missing
+      --no-target-check      skip the 8 s preflight BLE scan
+      --target-scan-time N   preflight scan length in seconds
+      --log-dir DIR          where ble-runs/ artifacts go
+      --no-color             disable ANSI colours
+
+4.6 Copy-paste examples
+      # Safe first contact (no DoS)
+      ./run-all-ble.sh --profile safe --target C0:00:00:41:73:AC
+
+      # Passive recon + Sniffle capture
+      ./run-all-ble.sh --profile recon --target C0:00:00:41:73:AC
+
+      # Full BLE assessment (destructive)
+      ./run-all-ble.sh --profile iot-ble --target C0:00:00:41:73:AC --yes
+
+      # Everything that does not need WHAD
+      ./run-all-ble-no-whad.sh --target C0:00:00:41:73:AC --yes
+
+      # Only the WHAD link-layer suite
+      ./run-all-ble.sh --stage whad --target C0:00:00:41:73:AC --yes
+
+      # Show one command without executing it
+      ./run-all-ble.sh --only whad/2_send_packet --dry-run --yes
+
+      # SweynTooth only, second dongle on ttyACM1
+      ./run-all-ble.sh --profile sweyntooth --nrf-port /dev/ttyACM1 --yes
+
+      # Explicit Sniffle port
+      ./run-all-ble.sh --profile recon --sniffle-port /dev/ttyACM1
+
+      # CPU-friendly: no live child output, stop at first failure
+      ./run-all-ble.sh --profile iot-ble --quiet --stop-on-fail --yes
+
+4.7 How to read the output
+    Each step prints:
+      [ n/N] stage/step
+             hardware: TAGS   timeout: Xs
+             one-line note
+        $ exact command
+        cwd: ...
+          | child output (live)
+        => PASS / FAIL / SKIP / TIMEOUT / TIMEOUT-OK / DRYRUN
+
+    Result meanings:
+      PASS        exit code 0
+      FAIL        non-zero exit (real problem)
+      SKIP        required hardware not detected (use --force to override)
+      TIMEOUT     real failure (step exceeded its timeout)
+      TIMEOUT-OK  deliberately long tool stopped on purpose (monitor,
+                  scanner, capture, SweynTooth PoC waiting for a connection)
+      WARN        check.sh found problems; does not fail the whole run
+
+    On a failure the runner prints:
+      FAILURE: stage/step
+      exit code: ...
+      reason   : ...
+      FAILING FUNCTION  (file:line in the failing function)
+      CALL STACK (outer -> inner)
+      LAST OUTPUT (last lines)
+    That block tells you whether the bug is in the target script, the WHAD
+    library, the dongle firmware, or a missing dependency.
+
+4.8 Exit codes
+      0    all good
+      1    at least one FAIL / TIMEOUT
+      2    bad arguments
+      3    authorization refused
+      130  interrupted (Ctrl+C)
+
+4.9 Artifacts
+    Every real run (and even --dry-run) creates:
+      ble-runs/<timestamp>/
+        runner.log              complete multiplexed console log
+        summary.json            machine-readable results + hardware state
+        summary.md              human-readable result table
+        logs/<step>.log         full output of one child script
+        work/                   cwd for the core scripts (packets, checkpoints)
+        sniffle_capture.pcap    capture from the sniffle stage, when enabled
+    Use --log-dir to put them somewhere else.
+
+
+--------------------------------------------------------------------------------
+ 5. RUNNING THE CORE SCRIPTS DIRECTLY
+--------------------------------------------------------------------------------
+General rules:
+  - Use the lab venv:  ~/ble-lab/venv/bin/python
+  - Use --help on anything:  ~/ble-lab/venv/bin/python scripts/<name>.py --help
+  - Run from ~/ble-lab unless the command says otherwise.
+  - Every script that talks to a target accepts the MAC as the first
+    positional argument. ALWAYS pass it: several scripts have old built-in
+    defaults (00:1F:FF:C1:63:9F, 80:E1:27:4D:A8:3F) that are not the lab
+    default target.
+
+5.1 OFFLINE - no radio needed
+   1_build_packet.py - byte-exact CONNECT_IND builder + spec checks
+      python scripts/1_build_packet.py [MAC] [--inita AA:BB:CC:DD:EE:FF]
+      python scripts/1_build_packet.py C0:00:00:41:73:AC
+    Prints a field table and the raw hex packet. This is the packet used by the
+    other link-layer scripts.
+
+5.2 WHAD LINK-LAYER SUITE - needs [DONGLE] + [TARGET]
+    The --port is a WHAD logical port ("uart0" or "uart1"), not a /dev path.
+
+   2_send_packet.py - rogue central with attacker-chosen LL parameters
+      python scripts/2_send_packet.py <MAC> [--public] [--port uart0]
+      Add --public if the target uses a public address (default assumes random).
+
+   4_inject_raw.py - arm a raw CONNECT_IND injector
+      python scripts/4_inject_raw.py <MAC> [--window 120] [--port uart0]
+
+   5_scan_then_inject.py - scan first, then reopen as injector
+      python scripts/5_scan_then_inject.py <MAC> [--scan-time 30] \
+             [--window 90] [--port uart0]
+
+   6_scan_inject_final.py - single-instance low-latency race
+      python scripts/6_scan_inject_final.py <MAC> [--scan-time 30] \
+             [--window 90] [--port uart0]
+
+   7_connect_lifecycle.py - inject + measure ADV silence (acceptance oracle)
+      python scripts/7_connect_lifecycle.py <MAC> [--scan-time 30] \
+             [--window 75] [--port uart0]
+
+   8_trigger_sweep.py - calibrate which AdvA byte offset fires
+      python scripts/8_trigger_sweep.py <MAC> [--scan-time 25] \
+             [--offsets 0-30] [--port uart0]
+
+   10_prepare_rootcause.py - manual TX vs ReceptionTrigger probe
+      python scripts/10_prepare_rootcause.py <MAC> [--port uart0]
+
+   11_max_fidelity.py - spoof InitA, raw inject, custom connect, GATT
+      python scripts/11_max_fidelity.py <MAC> [--port uart0]
+
+   12_ab_diagnose.py - default vs custom LLData + interval sweep
+      python scripts/12_ab_diagnose.py <MAC> [--port uart0]
+
+   13_death_autopsy.py - LL control PDU / HCI termination forensics
+      python scripts/13_death_autopsy.py <MAC> [--port uart0]
+
+   14_mtu_responder.py - answer ATT MTU request, keep the rogue link alive
+      python scripts/14_mtu_responder.py <MAC> [--mtu 247] [--port uart0]
+
+   15_manual_att.py - raw L2CAP/ATT discovery below the host stack
+      python scripts/15_manual_att.py <MAC> [--mtu 247] [--port uart0]
+
+   oooooooooooo.py - length-field fuzzer (12 o's in the real filename)
+      python scripts/oooooooooooo.py <MAC>              # connect only
+      python scripts/oooooooooooo.py <MAC> -l           # enable fuzz mode
+      Other options: --lens, --shots 3, --crash-window 5, \
+                     --recovery-window 10, --addr-type auto|public|random, \
+                     --scan-time 15, --mtu 247, --watch 3
+      -l / --fuzz-length is the switch that turns the fuzzing on.
+
+   own_packet_full.py - full 8-step rogue-central pipeline
+      python scripts/own_packet_full.py <MAC> [--addr-type auto|public|random] \
+             [--scan-time 15] [--mtu 247] [--watch 3]
+
+   sweyntooth_crash.py - 9 malformed CONNECT_IND vectors + crash oracle
+      python scripts/sweyntooth_crash.py <MAC> [--list] [--shots 3] \
+             [--window 7] [--vectors trunc0,iv0,...]
+
+5.3 HOST-STACK SCRIPTS - need [HOST] + [TARGET] (BlueZ + bleak)
+   getting-all-details-of-ble.py - full GATT tree
+      python scripts/getting-all-details-of-ble.py <MAC>
+
+   read_descriptors.py - read raw bytes at fixed descriptor handles
+      python scripts/read_descriptors.py <MAC> [--handles 19,22]
+      Change --handles to the handles your own GATT tree shows.
+
+   thor.py - GATT explorer + write-length fuzzer
+      python scripts/thor.py <MAC> --explore-only          # recon only
+      python scripts/thor.py <MAC> --reset-checkpoint      # full write fuzz
+      python scripts/thor.py <MAC> --address-type random   # if target is random
+      IMPORTANT: --address-type defaults to "public". The lab target
+      C0:00:00:41:73:AC is a random static address, so pass
+      --address-type random. thor keeps probe_checkpoint.json so an
+      interrupted fuzz run can resume; --reset-checkpoint starts fresh.
+
+   ble_busy.py - connect/disconnect DoS (runs forever)
+      python scripts/ble_busy.py <MAC> [--timeout 0.5] [--delay 0.05]
+      Stop it with Ctrl+C. Default target is 00:1F:FF:C1:63:9F, so pass <MAC>.
+
+   ble_connection_time_checker.py - uptime / reboot monitor
+      python scripts/ble_connection_time_checker.py <MAC> \
+             [--timeout 10] [--retry 2]
+      Runs forever, logs each session; Ctrl+C to stop.
+
+5.4 ENVIRONMENT
+   check.sh (bash, no Python)
+      ~/ble-lab/scripts/check.sh
+   13 checks, exit code = number of failures. It hardcodes ~/ble-lab paths,
+   so it always checks the original lab even if you run it from a copy.
+
+
+--------------------------------------------------------------------------------
+ 6. SWEYNTOOTH PoCs - needs [NRF52-ST] + [TARGET]
+--------------------------------------------------------------------------------
+Location: tools/sweyntooth_bluetooth_low_energy_attacks/
+  13 main PoCs + extras/ (12 more + knob_tester_ble.py selector).
+
+RUN ALL 26 THROUGH THE RUNNER (recommended):
+  ./run-all-ble.sh --profile sweyntooth --target <MAC> \
+      --nrf-port /dev/ttyACM0 --yes
+
+Check that the dongle is seen first:
+  ./run-all-ble.sh --hw-check
+  -> [NRF52-ST] FOUND ... serial=/dev/ttyACM0
+
+The detector accepts Nordic VID 1915, WHAD VID c0ff:eeee, and Adafruit /
+Bluefruit nRF52840 boards (VID 239a, product "Bluefruit nRF52840").  The
+SweynTooth firmware itself is often flashed on an Adafruit nRF52840, so a
+board showing as 239a:8029 is valid for this stage.  Older runner versions
+only looked for 1915, which made every SweynTooth step skip with
+"missing hardware: [NRF52-ST]" even though the dongle was working.
+
+RUN ONE POC BY HAND (same thing the runner does):
+  cd ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+  PYTHONPATH=~/ble-lab/scripts/pycompat \
+  ~/ble-lab/venv/bin/python <POC>.py /dev/ttyACM0 <MAC>
+
+  # every main PoC, one after another
+  for POC in CC2640R2_public_key_crash CC_connection_req_crash \
+             DA14580_exploit_att_crash DA14680_exploit_silent_overflow \
+             esp32_hci_desync invalid_channel_map \
+             link_layer_length_overflow llid_dealock \
+             Microchip_invalid_lcap_fragment sequential_att_deadlock \
+             Telink_key_size_overflow Telink_zero_ltk_installation \
+             zephyr_invalid_sequence; do
+    echo "== $POC"
+    PYTHONPATH=~/ble-lab/scripts/pycompat \
+      ~/ble-lab/venv/bin/python "$POC.py" /dev/ttyACM0 <MAC>
+  done
+
+  # every extra PoC
+  for POC in anomaly_unexpected_encryption_start \
+             CC2540_connection_req_crash_truncated \
+             CC2540_truncated_connection_success \
+             DA14680_att_mtu_length_114_silent_overflow_accepted \
+             DA14680_att_mtu_length_5_malformed_accepted \
+             DA14680_att_read_100_silent_overflow_crash \
+             DA14680_truncated_l2cap_crash \
+             Microchip_and_others_non_compliant_connection \
+             non_compliance_data_during_encryption_setup \
+             non_compliance_dhcheck_skip \
+             non_compliance_multiple_version \
+             non_compliance_nonzero_ediv_rand; do
+    echo "== $POC"
+    PYTHONPATH=~/ble-lab/scripts/pycompat \
+      ~/ble-lab/venv/bin/python "extras/$POC.py" /dev/ttyACM0 <MAC>
+  done
+
+The PoCs are NOT argparse scripts. They take two positional arguments:
+      <serial_port>  <target_mac>
+and they default to /dev/ttyACM0 and 80:ea:ca:80:00:01 if you omit them.
+
+You MUST run them from the SweynTooth repo folder, because each PoC does
+    sys.path.insert(0, os.getcwd() + '/libs')
+to load its bundled old Scapy and the NRF52 driver. Use the pycompat shim:
+
+  cd ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+  PYTHONPATH=~/ble-lab/scripts/pycompat \
+  ~/ble-lab/venv/bin/python CC2640R2_public_key_crash.py \
+      /dev/ttyACM0 C0:00:00:41:73:AC
+
+  # an extra PoC
+  PYTHONPATH=~/ble-lab/scripts/pycompat \
+  ~/ble-lab/venv/bin/python extras/non_compliance_dhcheck_skip.py \
+      /dev/ttyACM0 C0:00:00:41:73:AC
+
+  # selector that reruns a subset
+  ... extras/knob_tester_ble.py /dev/ttyACM0 C0:00:00:41:73:AC
+
+Many PoCs are designed to wait for a connection or for the target to
+advertise, so they do not exit on their own. That is why the runner gives them
+30 s and reports TIMEOUT-OK. Stop them with Ctrl+C when running by hand.
+
+Firmware: the dongle must be flashed with the SweynTooth driver firmware, not
+WHAD. See HARDWARE_REQUIRED.txt section 4.
+
+
+--------------------------------------------------------------------------------
+ 7. SNIFFLE TOOLS - needs [SNIFFLE] (+ [TARGET] for some)
+--------------------------------------------------------------------------------
+Location: tools/Sniffle/python_cli/
+Run them from that folder (so "import sniffle" resolves), or set
+PYTHONPATH=~/ble-lab/tools/Sniffle/python_cli.
+
+All take "-s <serial port>" to pick the board explicitly, plus "-b <baud>".
+
+  version_check.py   -s /dev/ttyACM1
+      Probe firmware/host API compatibility.
+
+  uart_test.py       -s /dev/ttyACM1
+      UART echo/latency test.
+
+  reset.py           -s /dev/ttyACM1
+      Reset the sniffer dongle.
+
+  scanner.py         -s /dev/ttyACM1 -d
+      Passive BLE scan; -d decodes, -o writes a pcap.
+
+  sniff_receiver.py  -s /dev/ttyACM1 -m <MAC> -a -o capture.pcap
+      Capture advertisements from one MAC. -a = advertisements only,
+      -m = MAC filter, -o = pcap output. Also the Wireshark extcap backend.
+
+  advertiser.py      -s /dev/ttyACM1
+      Advertise a fake BLE peripheral (no target needed).
+
+  initiator.py       -s /dev/ttyACM1 -m <MAC>
+      Initiate a connection to the target.
+
+  relay_master.py    -s /dev/ttyACM1 -m <MAC> -o relay.pcap
+      Master side of the two-host BLE relay.
+
+  relay_slave.py     -s /dev/ttyACM1 -M <master-ip>
+      Slave side; -M is the IP of the relay master (default 127.0.0.1).
+
+  pcap_decoder.py    capture.pcap [-d]
+      Offline: decode a Sniffle pcap into readable PDUs. No radio needed.
+
+Capture is how you prove an injected packet really went on-air.
+
+
+--------------------------------------------------------------------------------
+ 8. ZEPHYR HCI SCRIPTS - needs [ZEPHYR-HCI] (usually hci1)
+--------------------------------------------------------------------------------
+Location: tools/ZEPHYR/pylol/
+The dongle must be flashed with ZEPHYR USB-HCI firmware, then bound to BlueZ so
+it appears as hci1. These scripts take no positional arguments.
+
+  nrf-api-check.py   -i hci1 [-v]
+      Probe the controller API. NOTE: the option is -i/--interface,
+      NOT --hci.
+
+  adv-checker.py
+      Register a BlueZ D-Bus advertisement and check it is accepted.
+
+  connect-gatt-char.py
+      Register a GATT service/characteristic on the ZEPHYR adapter.
+
+  adv-connect-wireshark.py
+      Advertise, accept a central, dump services/characteristics/handles to
+      gatt_handles.txt.
+
+  ble_connect.py     -m <MAC> [-p "payload"]
+      Plain bleak connect + UTF-8 write. Needs [HOST] + [TARGET], not ZEPHYR.
+
+FIXED: the runner's step "zephyr/nrf-api-check" used to build
+
+    python tools/ZEPHYR/pylol/nrf-api-check.py --hci hci1
+
+but that script only accepts -i/--interface, so the step failed with
+"unrecognized arguments: --hci hci1".  scripts/run_all_ble.py now passes
+("--interface", "hci1").  If you have an older copy, run it by hand with
+-i hci1 or apply that one-line change.  Everything else in the ZEPHYR stage
+is fine.
+
+
+--------------------------------------------------------------------------------
+ 9. CLASSIC / BR-EDR TOOLKITS (not launched by this BLE runner)
+--------------------------------------------------------------------------------
+The runner deliberately does not launch the YAML exploit frameworks, because
+those YAML files are configs for their own engines, not standalone scripts.
+
+  BlueToolkit:  tools/BlueToolkit-upstream/
+      .venv/bin/bluekit -l
+      .venv/bin/bluekit -t AA:BB:CC:DD:EE:FF -ct        # connectivity check
+      .venv/bin/bluekit -t AA:BB:CC:DD:EE:FF -r         # recon
+      .venv/bin/bluekit -t AA:BB:CC:DD:EE:FF -e invalid_max_slot au_rand_flooding
+      .venv/bin/bluekit -t AA:BB:CC:DD:EE:FF -hh esp32  # filter by hardware
+    Requires the right radio for the chosen YAML: [HOST-BR], [ESP32] for
+    Braktooth, [NEXUS5] for InternalBlue.
+
+  SbleedyGonzales: tools/SbleedyGonzales/
+      sbleedy -l
+      sudo sbleedy -t AA:BB:CC:DD:EE:FF -ct
+      sudo sbleedy -t AA:BB:CC:DD:EE:FF -r
+      sudo sbleedy -t AA:BB:CC:DD:EE:FF -in 1-3,5
+      sudo sbleedy -t AA:BB:CC:DD:EE:FF -chw
+      sudo sbleedy -fhw nRF52840
+    See its README.md and the YAML files under exploits/.
+
+Which hardware each classic module needs is in CLASSIC_BR_EDR_SCRIPTS.txt and
+HARDWARE_REQUIRED.txt. These are not covered by run-all-ble.sh.
+
+
+--------------------------------------------------------------------------------
+ 10. RECOMMENDED ORDER FOR A REAL ASSESSMENT
+--------------------------------------------------------------------------------
+   1. ./scripts/check.sh                      fix all FAILs you can
+   2. ./run-all-ble.sh --hw-check             know what is actually plugged in
+   3. ./run-all-ble.sh -l                     pick the scripts you need
+   4. ./run-all-ble.sh --profile safe --target <MAC>
+         -> doctor, offline packet build, GATT recon. Non-destructive.
+   5. Review ble-runs/<timestamp>/summary.md and the GATT output.
+   6. ./run-all-ble.sh --profile recon --target <MAC>
+         -> add Sniffle passive capture if a TI board is attached.
+   7. WHAD link-layer work, only with the ButteRFly firmware:
+         ./run-all-ble.sh --stage whad --target <MAC> --yes
+   8. Host DoS / write fuzzing, only if authorized:
+         ./run-all-ble.sh --stage host --target <MAC> --yes
+   9. SweynTooth PoCs, after re-flashing to SweynTooth firmware:
+         ./run-all-ble.sh --profile sweyntooth --nrf-port /dev/ttyACM0 --yes
+  10. ZEPHYR HCI tests, after re-flashing to ZEPHYR firmware:
+         ./run-all-ble.sh --stage zephyr --yes
+         (remember the nrf-api-check --hci issue above)
+
+Between stage 7/8 and stage 9 the dongle must be re-flashed; the runner cannot
+do that for you and will only warn that the firmware is wrong.
+
+
+--------------------------------------------------------------------------------
+ 11. TROUBLESHOOTING
+--------------------------------------------------------------------------------
+Symptom                                   What to do
+----------------------------------------- --------------------------------------
+DONGLE MISSING although plugged in        lsusb | grep -i c0ff:eeee
+                                          ./run-all-ble.sh --hw-check
+                                          stop ModemManager; check uucp
+"Device or resource busy" / permission    sudo systemctl stop ModemManager
+                                          usermod -aG uucp $USER; log out/in
+WHAD steps fail at WhadDevice.create()    wrong firmware or port; try
+                                          --whad-port uart1
+SweynTooth steps all SKIP                 dongle not recognized.  Check
+                                          ./run-all-ble.sh --hw-check.
+                                          Fixed runner detects Adafruit
+                                          239a:8029 "Bluefruit nRF52840";
+                                          older copies only knew VID 1915.
+                                          Or pass --force / --nrf-port.
+SweynTooth steps all fail instantly       dongle still on WHAD firmware.
+                                          Re-flash SweynTooth driver firmware
+                                          or use a second dongle + --nrf-port
+SweynTooth import error: liblibc.a        PYTHONPATH=~/ble-lab/scripts/pycompat
+                                          (the runner already does this)
+Sniffle steps skipped                     no TI board detected; pass
+                                          --sniffle-port /dev/ttyACMx
+check.sh says ButteRFly USB FAIL          dongle not plugged in; normal for
+                                          host-only runs (runner shows WARN)
+Target not found in preflight scan        device may use a random/private
+                                          address or not advertise; run
+                                          --no-target-check or verify MAC
+--hci: unrecognized arguments            known nrf-api-check issue; use
+                                          -i hci1 manually
+ble_busy/thor/getting-all hit the wrong   pass the MAC explicitly; their
+device                                    built-in defaults are old addresses
+thor cannot connect                       add --address-type random for
+                                          C0:00:00:41:73:AC
+A step keeps running forever              it is a long/interactive tool; use
+                                          --quiet, --stop-on-fail, Ctrl+C, or
+                                          the runner's TIMEOUT-OK behaviour
+Run looks slow / noisy                     --quiet --stop-on-fail
+Need to know the exact failing line        read the FAILING FUNCTION block, or
+                                          logs/<step>.log in the run folder
+
+
+--------------------------------------------------------------------------------
+ 12. SMALL INCONSISTENCIES FOUND WHILE READING THE FILES
+--------------------------------------------------------------------------------
+These do not stop you working, but knowing them saves confusion:
+
+1. Documentation says check.sh runs "12 checks"; the script actually runs 13
+   (13 check() lines). Exit code is still the number of failures.
+
+2. scripts/check.sh hardcodes $HOME/ble-lab and $HOME/ble-lab/venv. If you run
+   it from crybabyforu/ (or any copy), it still inspects the original lab.
+
+3. FIXED: the runner's zephyr/nrf-api-check step used to pass --hci hci1;
+   the script only accepts -i/--interface.  It now passes --interface hci1.
+   See section 8.
+
+4. Individual script defaults differ from the lab default target:
+     ble_busy.py                  -> 00:1F:FF:C1:63:9F
+     getting-all-details-of-ble   -> 00:1F:FF:C1:63:9F
+     read_descriptors.py          -> 80:E1:27:4D:A8:3F
+     thor.py                      -> 00:1F:FF:C1:63:9F, public address
+   Always pass the MAC (and --address-type for thor).
+
+5. The catalogue has deliberate duplicates/aliases:
+     whad/oo-connect and whad/oo-fuzz are the same file in different modes
+     recon/thor-explore and host/thor-fuzz are the same file in different modes
+     whadbro/dos and whadbro/sooooooooo are older prototypes (--include duplicates)
+   So "67 scripts" includes duplicate entries and optional utilities; the
+   number of distinct files is smaller.
+
+6. The default profile is iot-ble, which is destructive. If you just want to
+   look around, always start with --profile safe or --dry-run.
+
+7. --dry-run still creates a ble-runs/<timestamp> folder (it holds the plan
+   and summary). Use --log-dir if you do not want that.
+
+8. -N numbers depend on the wrapper: 67 entries with run-all-ble.sh, 49 with
+   run-all-ble-no-whad.sh. Re-run -l after switching wrappers.
+
+9. The Fuzzer filename is oooooooooooo.py (twelve o's). Some docs write a
+   different number of o's. Use tab completion or the -l catalogue.
+
+
+================================================================================
+ 13. EVERY STEP, EXACT COMMANDS (generated from the runner manifest)
+================================================================================
+This is the complete 67-entry catalogue in runner order, generated directly
+from scripts/run_all_ble.py.  The -N numbers below are the same numbers shown
+by:
+
+    ./run-all-ble.sh -l
+
+How to read one entry:
+
+  [NN] step/id
+       needs  : hardware tags required (see section 3)
+       timeout: runner timeout; TIMEOUT-OK = long-running tool stopped on purpose
+       flags  : DESTRUCTIVE needs --yes; duplicate/optional are filtered by default
+       number : run exactly this catalogue entry
+       by-id  : same step by name (also works with a --profile/--stage selection)
+       direct : the raw command the runner executes
+       cwd    : working directory the runner uses
+
+Notes:
+  * Replace <MAC> with your target, e.g. 84:BA:20:59:CB:A3.
+  * Add --yes to any entry whose flags include DESTRUCTIVE.
+  * -N numbers are for run-all-ble.sh.  run-all-ble-no-whad.sh skips the whad
+    stage, so its -l/-N list is shorter and numbered differently.  When using
+    the no-whad wrapper, prefer the by-id line (it works with either wrapper).
+  * Sniffle steps: add --sniffle-port /dev/ttyACMx if auto-detection fails.
+  * SweynTooth steps: /dev/ttyACM0 is the SweynTooth nRF52840.  The runner also
+    sets PYTHONPATH=~/ble-lab/scripts/pycompat (shown in the direct line).
+  * "ble-runs/<timestamp>/work" means the work/ folder of the current run.
+  * Safest way to see a command without running it:
+        ./run-all-ble.sh -N 3 --dry-run --yes
+    (if the step's hardware is MISSING it is shown as SKIP; add --force to
+     print the command anyway)
+
+
+--------------------------------------------------------------------------------
+ DOCTOR
+--------------------------------------------------------------------------------
+[01] doctor/check.sh
+     needs  : -   timeout: 90s   flags: soft-fail
+     what   : 13 environment checks; non-zero is reported as WARN, not FAIL
+     number : ./run-all-ble.sh -N 1 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage doctor --only 'doctor/check.sh' --target <MAC>
+     direct : bash ~/ble-lab/scripts/check.sh
+     cwd    : ~/ble-lab
+
+
+--------------------------------------------------------------------------------
+ OFFLINE
+--------------------------------------------------------------------------------
+[02] offline/1_build_packet
+     needs  : -   timeout: 30s   flags: -
+     what   : offline CONNECT_IND builder + spec legality checks (no radio)
+     number : ./run-all-ble.sh -N 2 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage offline --only 'offline/1_build_packet' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/1_build_packet.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+
+--------------------------------------------------------------------------------
+ RECON
+--------------------------------------------------------------------------------
+[03] recon/getting-all-details-of-ble
+     needs  : HOST,TARGET   timeout: 90s   flags: -
+     what   : full GATT service/characteristic/descriptor tree
+     number : ./run-all-ble.sh -N 3 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage recon --only 'recon/getting-all-details-of-ble' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/getting-all-details-of-ble.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[04] recon/read_descriptors
+     needs  : HOST,TARGET   timeout: 60s   flags: -
+     what   : reads descriptor handles 19 and 22 (adjust in the script if needed)
+     number : ./run-all-ble.sh -N 4 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage recon --only 'recon/read_descriptors' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/read_descriptors.py <MAC> --handles 19,22
+     cwd    : ble-runs/<timestamp>/work
+
+[05] recon/thor-explore
+     needs  : HOST,TARGET   timeout: 180s   flags: -
+     what   : thor part 1 only: GATT exploration, no write fuzzing
+     number : ./run-all-ble.sh -N 5 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage recon --only 'recon/thor-explore' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/thor.py <MAC> --explore-only
+     cwd    : ble-runs/<timestamp>/work
+
+
+--------------------------------------------------------------------------------
+ SNIFFLE (TI Launchpad)
+--------------------------------------------------------------------------------
+[06] sniffle/version_check
+     needs  : SNIFFLE   timeout: 30s   flags: -
+     what   : probe sniffer firmware API level
+     number : ./run-all-ble.sh -N 6 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/version_check' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/version_check.py
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[07] sniffle/uart_test
+     needs  : SNIFFLE   timeout: 8s   flags: TIMEOUT-OK
+     what   : UART echo/latency test; stopped after the timeout
+     number : ./run-all-ble.sh -N 7 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/uart_test' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/uart_test.py
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[08] sniffle/scanner
+     needs  : SNIFFLE   timeout: 15s   flags: TIMEOUT-OK
+     what   : passive BLE scan for the whole timeout window
+     number : ./run-all-ble.sh -N 8 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/scanner' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/scanner.py -d
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[09] sniffle/sniff_receiver
+     needs  : SNIFFLE,TARGET   timeout: 20s   flags: TIMEOUT-OK
+     what   : capture target advertisements to pcap for the timeout window
+     number : ./run-all-ble.sh -N 9 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/sniff_receiver' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/sniff_receiver.py -m <MAC> -a -o ~/ble-lab/ble-runs/<timestamp>/sniffle_capture.pcap
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[10] sniffle/reset
+     needs  : SNIFFLE   timeout: 20s   flags: optional
+     what   : 
+     number : ./run-all-ble.sh -N 10 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/reset' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/reset.py
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[11] sniffle/advertiser
+     needs  : SNIFFLE   timeout: 15s   flags: TIMEOUT-OK, optional
+     what   : 
+     number : ./run-all-ble.sh -N 11 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/advertiser' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/advertiser.py
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[12] sniffle/initiator
+     needs  : SNIFFLE,TARGET   timeout: 20s   flags: TIMEOUT-OK, optional
+     what   : 
+     number : ./run-all-ble.sh -N 12 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/initiator' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/initiator.py -m <MAC>
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[13] sniffle/relay_master
+     needs  : SNIFFLE,TARGET   timeout: 20s   flags: TIMEOUT-OK, optional, interactive
+     what   : 
+     number : ./run-all-ble.sh -N 13 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/relay_master' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/relay_master.py -m <MAC>
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+[14] sniffle/relay_slave
+     needs  : SNIFFLE,TARGET   timeout: 20s   flags: TIMEOUT-OK, optional
+     what   : 
+     number : ./run-all-ble.sh -N 14 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sniffle --only 'sniffle/relay_slave' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/Sniffle/python_cli/relay_slave.py
+     cwd    : ~/ble-lab/tools/Sniffle/python_cli
+
+
+--------------------------------------------------------------------------------
+ WHAD (ButteRFly)
+--------------------------------------------------------------------------------
+[15] whad/2_send_packet
+     needs  : DONGLE,TARGET   timeout: 90s   flags: -
+     what   : rogue central with custom AA / CRCInit / interval / hop
+     number : ./run-all-ble.sh -N 15 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/2_send_packet' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/2_send_packet.py <MAC> --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[16] whad/4_inject_raw
+     needs  : DONGLE,TARGET   timeout: 90s   flags: -
+     what   : reactive CONNECT_IND injection, 30 s watch window
+     number : ./run-all-ble.sh -N 16 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/4_inject_raw' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/4_inject_raw.py <MAC> --window 30 --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[17] whad/5_scan_then_inject
+     needs  : DONGLE,TARGET   timeout: 120s   flags: -
+     what   : scan, reopen as injector, arm AdvA triggers
+     number : ./run-all-ble.sh -N 17 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/5_scan_then_inject' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/5_scan_then_inject.py <MAC> --scan-time 10 --window 30 --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[18] whad/6_scan_inject_final
+     needs  : DONGLE,TARGET   timeout: 120s   flags: -
+     what   : single-instance continuous-RX connection race
+     number : ./run-all-ble.sh -N 18 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/6_scan_inject_final' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/6_scan_inject_final.py <MAC> --scan-time 10 --window 30 --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[19] whad/7_connect_lifecycle
+     needs  : DONGLE,TARGET   timeout: 120s   flags: -
+     what   : inject + measure ADV silence / supervision timeout
+     number : ./run-all-ble.sh -N 19 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/7_connect_lifecycle' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/7_connect_lifecycle.py <MAC> --scan-time 10 --window 30 --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[20] whad/8_trigger_sweep
+     needs  : DONGLE,TARGET   timeout: 180s   flags: -
+     what   : AdvA offset sweep to calibrate the injector
+     number : ./run-all-ble.sh -N 20 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/8_trigger_sweep' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/8_trigger_sweep.py <MAC> --scan-time 10 --offsets 0-30 --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[21] whad/10_prepare_rootcause
+     needs  : DONGLE,TARGET   timeout: 90s   flags: -
+     what   : manual TX vs ReceptionTrigger root-cause probe
+     number : ./run-all-ble.sh -N 21 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/10_prepare_rootcause' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/10_prepare_rootcause.py <MAC> --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[22] whad/11_max_fidelity
+     needs  : DONGLE,TARGET   timeout: 120s   flags: -
+     what   : InitA spoof + raw inject + custom connect
+     number : ./run-all-ble.sh -N 22 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/11_max_fidelity' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/11_max_fidelity.py <MAC> --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[23] whad/12_ab_diagnose
+     needs  : DONGLE,TARGET   timeout: 150s   flags: -
+     what   : default vs custom LLData + interval sweep
+     number : ./run-all-ble.sh -N 23 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/12_ab_diagnose' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/12_ab_diagnose.py <MAC> --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[24] whad/13_death_autopsy
+     needs  : DONGLE,TARGET   timeout: 90s   flags: -
+     what   : LL control PDU / HCI termination forensics
+     number : ./run-all-ble.sh -N 24 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/13_death_autopsy' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/13_death_autopsy.py <MAC> --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[25] whad/14_mtu_responder
+     needs  : DONGLE,TARGET   timeout: 90s   flags: -
+     what   : answer ATT MTU request to keep the rogue link alive
+     number : ./run-all-ble.sh -N 25 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/14_mtu_responder' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/14_mtu_responder.py <MAC> --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[26] whad/15_manual_att
+     needs  : DONGLE,TARGET   timeout: 120s   flags: -
+     what   : raw L2CAP/ATT discovery below the host stack
+     number : ./run-all-ble.sh -N 26 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/15_manual_att' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/15_manual_att.py <MAC> --port uart0
+     cwd    : ble-runs/<timestamp>/work
+
+[27] whad/oo-connect
+     needs  : DONGLE,TARGET   timeout: 150s   flags: -
+     what   : our-packet connector (non-fuzz mode)
+     number : ./run-all-ble.sh -N 27 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/oo-connect' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/oooooooooooo.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[28] whad/oo-fuzz
+     needs  : DONGLE,TARGET   timeout: 180s   flags: DESTRUCTIVE
+     what   : length-field fuzzer (CC2540 CVE-2019-19194 style)
+     number : ./run-all-ble.sh -N 28 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/oo-fuzz' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/oooooooooooo.py <MAC> -l
+     cwd    : ble-runs/<timestamp>/work
+
+[29] whad/own_packet_full
+     needs  : DONGLE,TARGET   timeout: 180s   flags: -
+     what   : 8-step rogue-central pipeline
+     number : ./run-all-ble.sh -N 29 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/own_packet_full' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/own_packet_full.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[30] whad/sweyntooth_crash
+     needs  : DONGLE,TARGET   timeout: 180s   flags: DESTRUCTIVE
+     what   : 9 malformed CONNECT_IND vectors + ADV-gap crash oracle
+     number : ./run-all-ble.sh -N 30 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whad/sweyntooth_crash' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/sweyntooth_crash.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[31] whadbro/dos
+     needs  : DONGLE,TARGET   timeout: 180s   flags: DESTRUCTIVE, duplicate
+     what   : prototype ancestor of ble_busy / own_packet_full
+     number : ./run-all-ble.sh -N 31 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whadbro/dos' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/whadbro/dos.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[32] whadbro/sooooooooo
+     needs  : DONGLE,TARGET   timeout: 180s   flags: duplicate
+     what   : 773-line prototype ancestor of own_packet_full
+     number : ./run-all-ble.sh -N 32 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage whad --only 'whadbro/sooooooooo' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/whadbro/sooooooooo.py <MAC> -c
+     cwd    : ble-runs/<timestamp>/work
+
+
+--------------------------------------------------------------------------------
+ HOST (BlueZ / bleak)
+--------------------------------------------------------------------------------
+[33] host/ble_connection_time_checker
+     needs  : HOST,TARGET   timeout: 20s   flags: TIMEOUT-OK
+     what   : uptime monitor; stopped after the timeout, that is expected
+     number : ./run-all-ble.sh -N 33 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage host --only 'host/ble_connection_time_checker' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/ble_connection_time_checker.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[34] host/ble_busy
+     needs  : HOST,TARGET   timeout: 20s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : rapid connect/disconnect DoS; stopped after the timeout
+     number : ./run-all-ble.sh -N 34 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage host --only 'host/ble_busy' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/ble_busy.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[35] host/pairing_req_multiple
+     needs  : HOST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : rapid pairing requests until one connect, then holds that link
+     number : ./run-all-ble.sh -N 35 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage host --only 'host/pairing_req_multiple' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/pairing_req_multiple.py <MAC>
+     cwd    : ble-runs/<timestamp>/work
+
+[36] host/thor-fuzz
+     needs  : HOST,TARGET   timeout: 240s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : write-length fuzzer; checkpoint resets on every run
+     number : ./run-all-ble.sh -N 36 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage host --only 'host/thor-fuzz' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/scripts/thor.py <MAC> --reset-checkpoint
+     cwd    : ble-runs/<timestamp>/work
+
+
+--------------------------------------------------------------------------------
+ SWEYNTOOTH
+--------------------------------------------------------------------------------
+[37] sweyntooth/CC2640R2_public_key_crash
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 37 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/CC2640R2_public_key_crash' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/CC2640R2_public_key_crash.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[38] sweyntooth/CC_connection_req_crash
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 38 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/CC_connection_req_crash' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/CC_connection_req_crash.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[39] sweyntooth/DA14580_exploit_att_crash
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 39 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/DA14580_exploit_att_crash' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/DA14580_exploit_att_crash.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[40] sweyntooth/DA14680_exploit_silent_overflow
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 40 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/DA14680_exploit_silent_overflow' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/DA14680_exploit_silent_overflow.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[41] sweyntooth/esp32_hci_desync
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 41 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/esp32_hci_desync' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/esp32_hci_desync.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[42] sweyntooth/invalid_channel_map
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 42 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/invalid_channel_map' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/invalid_channel_map.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[43] sweyntooth/link_layer_length_overflow
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 43 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/link_layer_length_overflow' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/link_layer_length_overflow.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[44] sweyntooth/llid_dealock
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 44 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/llid_dealock' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/llid_dealock.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[45] sweyntooth/Microchip_invalid_lcap_fragment
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 45 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/Microchip_invalid_lcap_fragment' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/Microchip_invalid_lcap_fragment.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[46] sweyntooth/sequential_att_deadlock
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 46 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/sequential_att_deadlock' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/sequential_att_deadlock.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[47] sweyntooth/Telink_key_size_overflow
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 47 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/Telink_key_size_overflow' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/Telink_key_size_overflow.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[48] sweyntooth/Telink_zero_ltk_installation
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 48 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/Telink_zero_ltk_installation' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/Telink_zero_ltk_installation.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[49] sweyntooth/zephyr_invalid_sequence
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 49 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth/zephyr_invalid_sequence' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/zephyr_invalid_sequence.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[50] sweyntooth-extra/anomaly_unexpected_encryption_start
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 50 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/anomaly_unexpected_encryption_start' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/anomaly_unexpected_encryption_start.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[51] sweyntooth-extra/CC2540_connection_req_crash_truncated
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 51 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/CC2540_connection_req_crash_truncated' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/CC2540_connection_req_crash_truncated.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[52] sweyntooth-extra/CC2540_truncated_connection_success
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 52 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/CC2540_truncated_connection_success' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/CC2540_truncated_connection_success.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[53] sweyntooth-extra/DA14680_att_mtu_length_114_silent_overflow_accepted
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 53 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/DA14680_att_mtu_length_114_silent_overflow_accepted' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/DA14680_att_mtu_length_114_silent_overflow_accepted.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[54] sweyntooth-extra/DA14680_att_mtu_length_5_malformed_accepted
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 54 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/DA14680_att_mtu_length_5_malformed_accepted' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/DA14680_att_mtu_length_5_malformed_accepted.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[55] sweyntooth-extra/DA14680_att_read_100_silent_overflow_crash
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 55 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/DA14680_att_read_100_silent_overflow_crash' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/DA14680_att_read_100_silent_overflow_crash.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[56] sweyntooth-extra/DA14680_truncated_l2cap_crash
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 56 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/DA14680_truncated_l2cap_crash' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/DA14680_truncated_l2cap_crash.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[57] sweyntooth-extra/Microchip_and_others_non_compliant_connection
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 57 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/Microchip_and_others_non_compliant_connection' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/Microchip_and_others_non_compliant_connection.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[58] sweyntooth-extra/non_compliance_data_during_encryption_setup
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 58 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/non_compliance_data_during_encryption_setup' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/non_compliance_data_during_encryption_setup.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[59] sweyntooth-extra/non_compliance_dhcheck_skip
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 59 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/non_compliance_dhcheck_skip' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/non_compliance_dhcheck_skip.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[60] sweyntooth-extra/non_compliance_multiple_version
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 60 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/non_compliance_multiple_version' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/non_compliance_multiple_version.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[61] sweyntooth-extra/non_compliance_nonzero_ediv_rand
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK
+     what   : SweynTooth extra PoC; stopped after 30 s, that is expected
+     number : ./run-all-ble.sh -N 61 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/non_compliance_nonzero_ediv_rand' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/non_compliance_nonzero_ediv_rand.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+[62] sweyntooth-extra/knob_tester_ble
+     needs  : NRF52-ST,TARGET   timeout: 30s   flags: DESTRUCTIVE, TIMEOUT-OK, duplicate
+     what   : selector that reruns a subset of the PoCs above
+     number : ./run-all-ble.sh -N 62 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage sweyntooth --only 'sweyntooth-extra/knob_tester_ble' --target <MAC>
+     direct : PYTHONPATH=~/ble-lab/scripts/pycompat ~/ble-lab/venv/bin/python ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks/extras/knob_tester_ble.py /dev/ttyACM0 <MAC>
+     cwd    : ~/ble-lab/tools/sweyntooth_bluetooth_low_energy_attacks
+
+
+--------------------------------------------------------------------------------
+ ZEPHYR HCI
+--------------------------------------------------------------------------------
+[63] zephyr/nrf-api-check
+     needs  : ZEPHYR-HCI   timeout: 30s   flags: -
+     what   : probe the ZEPHYR HCI adapter (default hci1)
+     number : ./run-all-ble.sh -N 63 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage zephyr --only 'zephyr/nrf-api-check' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/ZEPHYR/pylol/nrf-api-check.py --interface hci1
+     cwd    : ~/ble-lab/tools/ZEPHYR/pylol
+
+[64] zephyr/adv-checker
+     needs  : ZEPHYR-HCI   timeout: 40s   flags: TIMEOUT-OK
+     what   : register a BlueZ advertisement on hci1
+     number : ./run-all-ble.sh -N 64 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage zephyr --only 'zephyr/adv-checker' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/ZEPHYR/pylol/adv-checker.py
+     cwd    : ~/ble-lab/tools/ZEPHYR/pylol
+
+[65] zephyr/adv-connect-wireshark
+     needs  : ZEPHYR-HCI   timeout: 60s   flags: TIMEOUT-OK
+     what   : advertise, accept a central, dump GATT handles
+     number : ./run-all-ble.sh -N 65 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage zephyr --only 'zephyr/adv-connect-wireshark' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/ZEPHYR/pylol/adv-connect-wireshark.py
+     cwd    : ~/ble-lab/tools/ZEPHYR/pylol
+
+[66] zephyr/connect-gatt-char
+     needs  : ZEPHYR-HCI   timeout: 20s   flags: TIMEOUT-OK
+     what   : register a GATT service on the ZEPHYR adapter
+     number : ./run-all-ble.sh -N 66 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage zephyr --only 'zephyr/connect-gatt-char' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/ZEPHYR/pylol/connect-gatt-char.py
+     cwd    : ~/ble-lab/tools/ZEPHYR/pylol
+
+[67] zephyr/ble_connect
+     needs  : HOST,TARGET   timeout: 30s   flags: -
+     what   : bleak write test against the target
+     number : ./run-all-ble.sh -N 67 --target <MAC>
+     by-id  : ./run-all-ble.sh --stage zephyr --only 'zephyr/ble_connect' --target <MAC>
+     direct : ~/ble-lab/venv/bin/python ~/ble-lab/tools/ZEPHYR/pylol/ble_connect.py -m <MAC>
+     cwd    : ~/ble-lab/tools/ZEPHYR/pylol
+
+
+================================================================================
+END OF GUIDE. Start with:  cd ~/ble-lab && ./scripts/check.sh
+================================================================================

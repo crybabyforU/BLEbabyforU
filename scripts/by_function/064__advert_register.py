@@ -1,0 +1,1 @@
+../../tools/ZEPHYR/pylol/adv-checker.py

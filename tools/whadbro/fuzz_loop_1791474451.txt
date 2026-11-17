@@ -1,0 +1,53 @@
+target: F2:73:D6:06:8D:FA
+iter=1 LEN=186 flavor=structured onair=188B verdict=NO EFFECT
+iter=2 LEN=225 flavor=structured onair=227B verdict=NO EFFECT
+iter=3 LEN=194 flavor=structured onair=196B verdict=NO EFFECT
+iter=4 LEN=234 flavor=structured onair=236B verdict=NO EFFECT
+iter=5 LEN=159 flavor=chaos onair=161B verdict=NO EFFECT
+iter=6 LEN=51 flavor=structured onair=53B verdict=REACTION (gap 1.6s then resumed)
+iter=7 LEN=136 flavor=structured onair=138B verdict=REACTION (gap 1.6s then resumed)
+iter=8 LEN=169 flavor=structured onair=171B verdict=NO EFFECT
+iter=9 LEN=142 flavor=structured onair=144B verdict=NO EFFECT
+iter=10 LEN=220 flavor=chaos onair=222B verdict=REACTION (gap 1.5s then resumed)
+iter=11 LEN=200 flavor=chaos onair=202B verdict=REACTION (gap 1.5s then resumed)
+iter=12 LEN=38 flavor=structured onair=40B verdict=NO EFFECT
+iter=13 LEN=238 flavor=structured onair=240B verdict=NO EFFECT
+iter=14 LEN=197 flavor=chaos onair=199B verdict=NO EFFECT
+iter=15 LEN=83 flavor=chaos onair=85B verdict=REACTION (gap 1.6s then resumed)
+iter=16 LEN=95 flavor=chaos onair=97B verdict=NO EFFECT
+iter=17 LEN=6 flavor=structured onair=8B verdict=NO EFFECT
+iter=18 LEN=11 flavor=chaos onair=13B verdict=NO EFFECT
+iter=19 LEN=50 flavor=chaos onair=52B verdict=NO EFFECT
+iter=20 LEN=162 flavor=chaos onair=164B verdict=NO EFFECT
+iter=21 LEN=67 flavor=chaos onair=69B verdict=NO EFFECT
+iter=22 LEN=166 flavor=chaos onair=168B verdict=REACTION (gap 1.6s then resumed)
+iter=23 LEN=94 flavor=structured onair=96B verdict=REACTION (gap 1.6s then resumed)
+iter=24 LEN=144 flavor=structured onair=146B verdict=REACTION (gap 1.6s then resumed)
+iter=25 LEN=248 flavor=chaos onair=250B verdict=NO EFFECT
+iter=26 LEN=79 flavor=structured onair=81B verdict=REACTION (gap 2.1s then resumed)
+iter=27 LEN=157 flavor=chaos onair=159B verdict=NO EFFECT
+iter=28 LEN=205 flavor=structured onair=207B verdict=NO EFFECT
+iter=29 LEN=53 flavor=structured onair=55B verdict=REACTION (gap 1.6s then resumed)
+iter=30 LEN=47 flavor=chaos onair=49B verdict=NO EFFECT
+iter=31 LEN=69 flavor=chaos onair=71B verdict=NO EFFECT
+iter=32 LEN=116 flavor=chaos onair=118B verdict=NO EFFECT
+iter=33 LEN=1 flavor=chaos onair=3B verdict=NO EFFECT
+iter=34 LEN=233 flavor=chaos onair=235B verdict=NO EFFECT
+iter=35 LEN=52 flavor=structured onair=54B verdict=NO EFFECT
+iter=36 LEN=189 flavor=structured onair=191B verdict=NO EFFECT
+iter=37 LEN=213 flavor=structured onair=215B verdict=NO EFFECT
+iter=38 LEN=227 flavor=chaos onair=229B verdict=NO EFFECT
+iter=39 LEN=61 flavor=structured onair=63B verdict=NO EFFECT
+iter=40 LEN=75 flavor=chaos onair=77B verdict=NO EFFECT
+iter=41 LEN=199 flavor=chaos onair=201B verdict=REACTION (gap 1.6s then resumed)
+iter=42 LEN=22 flavor=structured onair=24B verdict=NO EFFECT
+iter=43 LEN=56 flavor=chaos onair=58B verdict=NO EFFECT
+iter=44 LEN=253 flavor=chaos onair=255B verdict=NO EFFECT
+iter=45 LEN=162 flavor=chaos onair=164B verdict=NO EFFECT
+iter=46 LEN=43 flavor=chaos onair=45B verdict=REACTION (gap 1.6s then resumed)
+iter=47 LEN=79 flavor=chaos onair=81B verdict=NO EFFECT
+iter=48 LEN=28 flavor=structured onair=30B verdict=NO EFFECT
+iter=49 LEN=38 flavor=structured onair=40B verdict=NO EFFECT
+iter=50 LEN=156 flavor=structured onair=158B verdict=NO EFFECT
+iter=51 LEN=23 flavor=structured onair=25B verdict=REACTION (gap 1.6s then resumed)
+iter=52 LEN=224 flavor=structured onair=226B verdict=NO EFFECT

@@ -1,0 +1,31 @@
+# crybabyforu - Python packages needed by the copied BLE lab
+#
+# The runner itself uses only the standard library.  These are the packages
+# imported by the scripts/tools.  The bundled Scapy/driver/colorama copies
+# under tools/sweyntooth.../libs are already included in this folder.
+#
+# Tested with the lab venv: Python 3.10.18.
+
+# Runner + host/recon + Zephyr ble_connect
+bleak==3.0.2
+dbus-fast==5.0.26
+
+# WHAD / ButteRFly scripts
+whad==1.2.17
+
+# Serial drivers (SweynTooth, Sniffle)
+pyserial==3.5
+
+# Modern Scapy (the old bundled Scapy is used only by SweynTooth)
+scapy==2.6.1
+
+# SweynTooth helper library
+colorama==0.4.6
+
+# Optional extras, needed only if you use these features:
+# pycryptodomex==3.23.0      # SMP / crypto helpers
+# numpy==...                 # Sniffle SDR channelizer
+# scipy==...                 # Sniffle SDR channelizer
+# SoapySDR==...              # Sniffle SDR capture
+# dbus-python==...           # Zephyr BlueZ D-Bus scripts
+# PyGObject==...             # Zephyr BlueZ GLib main loop

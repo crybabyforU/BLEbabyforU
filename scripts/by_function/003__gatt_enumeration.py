@@ -1,0 +1,1 @@
+../getting-all-details-of-ble.py

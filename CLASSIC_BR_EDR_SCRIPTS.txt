@@ -1,0 +1,183 @@
+================================================================================
+              CLASSIC BLUETOOTH / BR-EDR - SCRIPT LIST
+     One line per script: name | category | what it does | external device needed
+================================================================================
+Legend for "external device":
+  [HOST-BR] = built-in / USB BR/EDR Bluetooth adapter driven by BlueZ
+  [BLUING]  = CSR8510-class USB dongle running Bluing firmware (BR/EDR recon)
+  [ESP32]   = ESP32 board flashed with Braktooth firmware (bt_exploiter)
+  [NEXUS5]  = rooted Nexus 5 phone running InternalBlue (or CYW20735 board)
+  [TARGET]  = the classic Bluetooth device under test
+
+NOTE: the lab's own numbered scripts (1-15, own_packet_full, etc.) are BLE-only.
+      Everything below comes from the bundled upstream toolkits in ble-lab/tools/.
+================================================================================
+
+
+################################################################################
+# 1. BLUETOOLKIT - BLEEDINGTOOTH (Linux kernel BlueZ, BR/EDR)
+# tools/BlueToolkit-upstream/exploits/
+################################################################################
+
+bleedingtooth_badchoice_cve_2020_12352.yaml | RCE / info leak | Malformed L2CAP packet triggers a heap overflow in the Linux kernel Bluetooth stack (CVE-2020-12352) | [HOST-BR] + [TARGET]
+bleedingtooth_badkarma_cve_2020_12351.yaml | RCE | Type confusion in the Linux kernel HCI/L2CAP path for remote code execution (CVE-2020-12351) | [HOST-BR] + [TARGET]
+bleedingtooth_badvibes_cve_2020_24490.yaml | Info leak | Out-of-bounds read in the Linux kernel Bluetooth stack leaks kernel memory (CVE-2020-24490) | [HOST-BR] + [TARGET]
+
+
+################################################################################
+# 2. BLUETOOLKIT - BLUEBORNE
+################################################################################
+
+blueborne_CVE_2017_0785.yaml | Info leak | Android Bluetooth information disclosure (CVE-2017-0785) | [HOST-BR] + [TARGET]
+blueborne_CVE_2017_1000250.yaml | Info leak | Linux Bluetooth daemon information leak (CVE-2017-1000250) | [HOST-BR] + [TARGET]
+blueborne_CVE_2017_1000251.yaml | RCE | Linux Bluetooth daemon stack overflow allowing remote code execution (CVE-2017-1000251) | [HOST-BR] + [TARGET]
+
+
+################################################################################
+# 3. BLUETOOLKIT - BRAKTOOTH (baseband / LMP attacks)
+################################################################################
+
+braktooth_au_rand_flooding.yaml | DoS | Floods AU_RAND during pairing to exhaust/crash the baseband | [ESP32] + [TARGET]
+braktooth_duplicated_encapsulated_payload.yaml | DoS | Duplicated encapsulated payloads desync the controller | [ESP32] + [TARGET]
+braktooth_duplicated_iocap.yaml | DoS | Duplicated IO capability exchange confuses the pairing state | [ESP32] + [TARGET]
+braktooth_feature_req_ping_pong.yaml | DoS | Ping-pongs LMP feature requests to hang the link manager | [ESP32] + [TARGET]
+braktooth_feature_response_flooding.yaml | DoS | Floods LMP feature responses to exhaust controller resources | [ESP32] + [TARGET]
+braktooth_invalid_feature_page_execution.yaml | DoS | Executes an invalid feature page to crash the baseband | [ESP32] + [TARGET]
+braktooth_invalid_max_slot.yaml | DoS | Invalid max-slot LMP parameter crashes the controller | [ESP32] + [TARGET]
+braktooth_invalid_setup_complete.yaml | DoS | Invalid setup-complete message breaks the connection state machine | [ESP32] + [TARGET]
+braktooth_invalid_timing_accuracy.yaml | DoS | Invalid timing-accuracy value crashes the baseband | [ESP32] + [TARGET]
+braktooth_knob.yaml | Attack selector | Master knob that selects and runs Braktooth variants | [ESP32] + [TARGET]
+braktooth_lmp_auto_rate_overflow.yaml | DoS | LMP auto-rate overflow corrupts controller memory | [ESP32] + [TARGET]
+braktooth_lmp_invalid_transport.yaml | DoS | Invalid LMP transport parameter crashes the link manager | [ESP32] + [TARGET]
+braktooth_lmp_max_slot_overflow.yaml | DoS | Max-slot overflow in LMP triggers memory corruption | [ESP32] + [TARGET]
+braktooth_lmp_overflow_2dh1.yaml | DoS | Overflow via 2-DH1 LMP packet crashes the baseband | [ESP32] + [TARGET]
+braktooth_lmp_overflow_dm1.yaml | DoS | Overflow via DM1 LMP packet crashes the baseband | [ESP32] + [TARGET]
+braktooth_paging_scan_disable.yaml | DoS | Disables paging scan so the device becomes unreachable | [ESP32] + [TARGET]
+braktooth_repeated_host_connection.yaml | DoS | Repeated host connection attempts exhaust connection slots | [ESP32] + [TARGET]
+braktooth_sdp_oversized_element_size.yaml | DoS | Oversized SDP element size overflows the SDP parser | [ESP32] + [TARGET]
+braktooth_sdp_unkown_element_type.yaml | DoS | Unknown SDP element type crashes the SDP service | [ESP32] + [TARGET]
+braktooth_truncated_lmp_accepted.yaml | DoS | Truncated LMP-accepted message desyncs the link manager | [ESP32] + [TARGET]
+braktooth_truncated_sco_link_request.yaml | DoS | Truncated SCO link request crashes the controller | [ESP32] + [TARGET]
+braktooth_wrong_encapsulated_payload.yaml | DoS | Wrong encapsulated payload type corrupts the baseband parser | [ESP32] + [TARGET]
+
+
+################################################################################
+# 4. BLUETOOLKIT - INTERNALBLUE (Broadcom/Cypress controllers)
+################################################################################
+
+internalblue_CVE_2018_19860_0a_00.yaml | DoS | Malformed LMP opcode 0x0A/0x00 crashes Broadcom/Cypress controllers (CVE-2018-19860) | [NEXUS5] + [TARGET]
+internalblue_CVE_2018_19860_16_0b.yaml | DoS | Malformed LMP opcode 0x16/0x0B crashes Broadcom/Cypress controllers (CVE-2018-19860) | [NEXUS5] + [TARGET]
+internalblue_CVE_2018_19860_20_17.yaml | DoS | Malformed LMP opcode 0x20/0x17 crashes Broadcom/Cypress controllers (CVE-2018-19860) | [NEXUS5] + [TARGET]
+internalblue_CVE_2018_5383_Invalid_second.yaml | DoS / pairing flaw | Invalid "second" LMP message crashes the controller (CVE-2018-5383 related) | [NEXUS5] + [TARGET]
+internalblue_knob.yaml | Attack selector | Master knob that selects and runs InternalBlue variants | [NEXUS5] + [TARGET]
+
+
+################################################################################
+# 5. BLUETOOLKIT - PAIRING / IMPLEMENTATION CHECKS
+################################################################################
+
+custom_insecure_numeric_comparison_implementation.yaml | Auth bypass check | Tests for an insecure Numeric Comparison pairing implementation | [HOST-BR] + [TARGET]
+custom_legacy_pairing_second_check.yaml | Auth bypass check | Checks whether the second legacy-pairing confirmation is skipped (MITM) | [HOST-BR] + [TARGET]
+custom_method_confusion_check.yaml | Auth bypass check | Probes pairing method confusion between Just Works / Passkey / Numeric Comparison | [HOST-BR] + [TARGET]
+custom_nino_check.yaml | Auth bypass check | Tests the Numeric Comparison No-Input-No-Output downgrade weakness | [HOST-BR] + [TARGET]
+
+
+################################################################################
+# 6. BLUETOOLKIT - RECONNAISSANCE
+################################################################################
+
+reconnaissance_possible_BLUR.yaml | Recon | Detects the BLUR / BLUFF Bluetooth address-tracking weakness | [HOST-BR] + [TARGET]
+reconnaissance_SC_supported.yaml | Recon | Checks whether Secure Connections pairing is supported | [HOST-BR] + [TARGET]
+reconnaissance_SSP_supported.yaml | Recon | Checks whether Secure Simple Pairing is supported | [HOST-BR] + [TARGET]
+
+
+################################################################################
+# 7. SBLEEDYGONZALES - CLASSIC / BR-EDR MODULES
+# tools/SbleedyGonzales/modules/
+################################################################################
+
+modules/blueborne/CVE-2017-0781.py | RCE - BlueBorne | Android Bluetooth remote code execution (CVE-2017-0781) | [HOST-BR] + [TARGET]
+modules/blueborne/CVE-2017-0785.py | Info leak - BlueBorne | Android Bluetooth information disclosure (CVE-2017-0785) | [HOST-BR] + [TARGET]
+modules/keyboah/keystroke-injection-android-linux.py | HID injection | Keyboah-style keystroke injection into Android/Linux hosts | [HOST-BR] + [TARGET]
+modules/bluekit/bluekit_legacy_pairing_second_check.py | Auth bypass check | Legacy pairing second-confirmation bypass check | [HOST-BR] + [TARGET]
+modules/bluekit/bluekit_method_confusion_check.py | Auth bypass check | Pairing method-confusion check | [HOST-BR] + [TARGET]
+modules/bluekit/bluekit_nino_check.py | Auth bypass check | Numeric Comparison No-Input-No-Output downgrade check | [HOST-BR] + [TARGET]
+modules/bluekit/bluekit_recon_based_check.py | Recon | Fingerprints the target via Bluing BR/EDR LMP data and selects matching checks | [BLUING] + [TARGET]
+modules/bluekit/custom_insecure_numeric_comparison_implementation.py | Auth bypass check | Insecure Numeric Comparison implementation check | [HOST-BR] + [TARGET]
+
+
+################################################################################
+# 8. SBLEEDYGONZALES - SHARED FRAMEWORK (runs both BLE and classic)
+################################################################################
+
+sbleedyCLI/sbleedy.py | Orchestrator CLI | Runs multiple BLE/BR-EDR exploits concurrently and writes JSON reports | Hardware depends on the exploit selected
+sbleedyCLI/engines/exploitEngine.py | Exploit runner | Loads and executes exploit modules and tracks per-exploit results | Hardware depends on the exploit selected
+sbleedyCLI/engines/connectionEngine.py | Connection manager | Handles discovery, pairing and connection setup | [HOST-BR] or [HOST] depending on exploit
+sbleedyCLI/engines/hardwareEngine.py | Hardware manager | Detects and flashes supported adapters (nRF52840, micro:bit, HCI) | Needs the target adapter plugged in
+sbleedyCLI/engines/sbleedyEngine.py | Core engine | Coordinates recon, exploit scheduling, checkpointing and reports | Hardware depends on the exploit selected
+sbleedyCLI/recon.py | Recon | Enumerates nearby BLE/BR-EDR devices and advertised properties | [HOST-BR] + [TARGET]
+sbleedyCLI/report.py | Reporting | Serializes findings and exploit outcomes into JSON reports | None
+sbleedyCLI/checkpoint.py | Checkpointing | Persists run state so interrupted campaigns can resume | None
+
+
+################################################################################
+# 9. SBLEEDYGONZALES EXPLOIT DEFINITIONS - CLASSIC SUBSET
+# tools/SbleedyGonzales/exploits/ (YAML configs run by sbleedy)
+################################################################################
+
+bleedingtooth_badchoice.yaml | Info leak / RCE | Linux BlueZ heap overflow via malformed L2CAP (CVE-2020-12352) | [HOST-BR] + [TARGET]
+bleedingtooth_badkarma.yaml | DoS / RCE | Linux kernel HCI/L2CAP type confusion (CVE-2020-12351) | [HOST-BR] + [TARGET]
+bleedingtooth_badvibes.yaml | DoS / info leak | Linux kernel OOB read (CVE-2020-24490) | [HOST-BR] + [TARGET]
+blueborne_cve_2017_0781.yaml | DoS / RCE | Android Bluetooth RCE (CVE-2017-0781) | [HOST-BR] + [TARGET]
+blueborne_cve_2017_0785.yaml | Info leak | Android Bluetooth information disclosure (CVE-2017-0785) | [HOST-BR] + [TARGET]
+blueborne_cve_2017_1000251.yaml | RCE | Linux Bluetooth daemon stack overflow (CVE-2017-1000251) | [HOST-BR] + [TARGET]
+custom_insecure_numeric_comparison_implementation.yaml | MitM | Insecure Numeric Comparison implementation | [HOST-BR] + [TARGET]
+custom_legacy_pairing_second_check.yaml | MitM | Legacy pairing second-confirmation bypass | [HOST-BR] + [TARGET]
+custom_method_confusion_check_classic.yaml | MitM | Pairing method confusion (classic variant) | [HOST-BR] + [TARGET]
+custom_nino_check.yaml | MitM / info leak | Numeric Comparison No-Input-No-Output downgrade | [HOST-BR] + [TARGET]
+keystroke_injection.yaml | HID injection | Keyboah keystroke injection into Android/Linux | [HOST-BR] + [TARGET]
+reconnaissance_possible_BLUR.yaml | Recon | BLUR / BLUFF address-tracking check | [HOST-BR] + [TARGET]
+reconnaissance_SC_supported.yaml | Recon | Secure Connections support check | [HOST-BR] + [TARGET]
+reconnaissance_SSP_supported.yaml | Recon | Secure Simple Pairing support check | [HOST-BR] + [TARGET]
+
+
+################################################################################
+# 10. FRAMEWORK / ENGINE SCRIPTS (support, not standalone attacks)
+################################################################################
+
+BlueToolkit-upstream/bluekit/bluekit.py | Orchestrator CLI | bluekit command-line entry point | Hardware depends on exploit
+BlueToolkit-upstream/bluekit/bluekit/engine/engine.py | Exploit engine | Loads YAML exploits, schedules them and collects results | Hardware depends on exploit
+BlueToolkit-upstream/bluekit/bluekit/factories/exploitfactory.py | Factory | Builds exploit objects from YAML definitions | None
+BlueToolkit-upstream/bluekit/bluekit/factories/hardwarefactory.py | Factory | Builds hardware profiles (default, esp32, nexus5, nrf52) | None
+BlueToolkit-upstream/bluekit/bluekit/recon.py | Recon | Discovers targets and Bluetooth capabilities | [HOST-BR] + [TARGET]
+BlueToolkit-upstream/bluekit/bluekit/report.py | Reporting | Serializes results into reports | None
+BlueToolkit-upstream/bluekit/bluekit/verifyconn.py | Connection check | Verifies the target connection before running an exploit | [HOST-BR] + [TARGET]
+BlueToolkit-upstream/bluekit/bluekit/tests.py | Test runner | Runs built-in exploit self-tests | Depends on test
+BlueToolkit-upstream/bluekit/bluekit/checkpoint.py | Checkpointing | Saves/resumes exploit campaign state | None
+BlueToolkit-upstream/hardware/esp32_verify.py | Hardware check | Verifies the ESP32/Braktooth board is present and flashed | [ESP32]
+BlueToolkit-upstream/hardware/nexus5_verify.py | Hardware check | Verifies the rooted Nexus 5 / InternalBlue setup | [NEXUS5]
+BlueToolkit-upstream/hardware/nrf52_verify.py | Hardware check | Verifies the nRF52 dongle and firmware | [NRF52-ST]
+SbleedyGonzales/sbleedyCLI/sbleedy.py | Orchestrator CLI | Runs BLE/classic exploits concurrently with JSON reports | Hardware depends on exploit
+SbleedyGonzales/sbleedyCLI/engines/*.py | Exploit engine | connectionEngine, exploitEngine, hardwareEngine, sbleedyEngine | Hardware depends on exploit
+SbleedyGonzales/sbleedyCLI/recon.py | Recon | Enumerates BLE/BR-EDR targets | [HOST-BR] + [TARGET]
+SbleedyGonzales/sbleedyCLI/report.py | Reporting | JSON result serialization | None
+SbleedyGonzales/sbleedyCLI/checkpoint.py | Checkpointing | Saves/resumes campaign state | None
+SbleedyGonzales/helpers/bluing/ | Recon helper | Bluing CLI: BR/EDR LMP scan, LE scan, GATT scan, address spoofing | [BLUING] or [HOST-BR]
+SbleedyGonzales/helpers/pybluez/ | Bluetooth library | Vendored PyBluez (classic + BLE sockets) | [HOST-BR]
+SbleedyGonzales/helpers/blueshark/ | Sniffer helper | nRF Sniffer API (SnifferAPI) | nRF52 sniffer dongle
+
+
+################################################################################
+# QUICK CLASSIC ATTACK MAP
+################################################################################
+
+RCE / INFO LEAK ......... BleedingTooth (3), BlueBorne (3), Sbleedy BlueBorne (2)
+BASSEBAND DoS ........... Braktooth (22)
+CONTROLLER DoS .......... InternalBlue (5)
+PAIRING / AUTH BYPASS ... custom_* (4), bluekit (5)
+HID INJECTION ........... keyboah keystroke injection
+RECON ................... reconnaissance_* (3), bluekit_recon_based_check
+
+WARNING: Exploit-class tools. Use only on devices you own or have explicit
+written authorization to test.
+================================================================================

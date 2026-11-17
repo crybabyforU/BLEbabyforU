@@ -1,0 +1,1 @@
+../../tools/ZEPHYR/pylol/nrf-api-check.py

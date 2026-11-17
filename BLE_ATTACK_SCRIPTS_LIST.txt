@@ -1,0 +1,180 @@
+================================================================================
+              BLE LAB - COMPLETE SCRIPT / ATTACK INVENTORY
+        One line per script. Format: script | attack type | what it does
+================================================================================
+Scope: everything in ble-lab/scripts/ and the attack-capable parts of ble-lab/tools/.
+Run core scripts with: ~/ble-lab/venv/bin/python scripts/<name>.py --help
+================================================================================
+
+
+################################################################################
+# SECTION A - CORE LAB SCRIPTS (ble-lab/scripts/)  [21 Python + 1 shell]
+################################################################################
+
+1_build_packet.py | Packet crafting (offline) | Builds a byte-exact 36-byte CONNECT_IND with custom Access Address, CRCInit, interval, hop and channel map, then runs BLE spec legality checks; used to craft malformed/arbitrary connection packets.
+2_send_packet.py | Rogue central / connection hijack | Opens a live link to the target using attacker-chosen Link Layer parameters (AA, CRCInit, channel map, hop) and proves the rogue-parameter link carries GATT.
+4_inject_raw.py | Reactive Link Layer injection | Arms a WHAD injector with 4 trigger strategies to fire a raw CONNECT_IND inside the advertising inter-frame space and seize the connection.
+5_scan_then_inject.py | Synchronized hijack | Scans to confirm the target is advertising, releases the dongle, reopens as injector, arms AdvA-matched triggers and watches for the connection to be taken.
+6_scan_inject_final.py | Low-latency connection race | Single-instance continuous RX that counts target ADV_INDs and arms triggers without a dongle reopen, minimizing latency for connection interception.
+7_connect_lifecycle.py | Hijack + acceptance oracle | Injects CONNECT_IND on advertisement detection, then measures the ADV silence gap to confirm the device accepted the packet and obeyed the 2 s supervision timeout.
+8_trigger_sweep.py | Injector calibration | Sweeps AdvA pattern byte offsets 0-30, 3.5 s each, to find the exact hardware offset that makes reactive CONNECT_IND injection fire reliably.
+10_prepare_rootcause.py | Injection root-cause probe | Wraps the raw packet as BTLE/BTLE_DATA so prepare() accepts it, then compares manual literal TX vs ReceptionTrigger to test if stock firmware can inject arbitrary PDUs.
+11_max_fidelity.py | Identity spoofing (InitA clone) | Claims InitA FF:EE:DD:CC:BB:AA via set_bd_address, raw-injects the literal packet 5x, then connects with custom LLData and enumerates GATT.
+12_ab_diagnose.py | Parameter-tolerance diagnosis | A/B tests default vs custom LLData (AA/CRC/chanmap/hop) and sweeps intervals 80/160/320 ms to find which non-compliant parameters get the link killed.
+13_death_autopsy.py | Post-mortem / crash forensics | Hooks on_disconnected, on_ctl_pdu and on_data_pdu to dump LL control PDUs and decode HCI termination reasons (0x08 timeout, 0x13 remote terminated, 0x3E LL response timeout, etc.).
+14_mtu_responder.py | Link keep-alive exploit | Intercepts ATT_EXCHANGE_MTU_REQ (L2CAP CID 0x0004, ATT 0x02) and answers a raw MTU Response (247) in milliseconds, stopping the peripheral's ~200 ms LL_TERMINATE_IND kill.
+15_manual_att.py | Raw ATT stack / ATT fuzzing | Hand-builds L2CAP+ATT frames inside LL data PDUs, tests 4 TX formats, then runs By-Group-Type (0x10) and By-Type (0x08) discovery completely below the host GATT stack.
+oooooooooooo.py | DoS - length-field fuzzer (SweynTooth) | Fork of the rogue-central framework that declares N payload bytes in the header while truncating the buffer (CC2540 CVE-2019-19194 style) and uses ADV-gap timing to detect crashes/reboots.
+own_packet_full.py | Full rogue-central framework | 8-step pipeline: environment audit, scan + address-type detect, build/verify CONNECT_IND, raw inject, InitA spoof, custom connect, 3 ms MTU-response pump, manual GATT discovery.
+sweyntooth_crash.py | DoS - malformed CONNECT_IND crasher | Fires 9 named SweynTooth vectors (trunc0/12/18/26, iv0, to0, hop0, over247, valid34) with an ADV-interval oracle to detect firmware crashes, deadlocks and resets.
+ble_busy.py | DoS - link saturation | Infinite loop of fast BleakClient connect/disconnect (0.5 s timeout, 0.05 s gap) that keeps the target's Link Layer busy so legitimate centrals cannot connect.
+pairing_req_multiple.py | DoS - pairing flood | Fires rapid pairing/connection requests (0.3 s timeout, 0.02 s gap) until the first successful connect, then holds that single link stable forever and silently reconnects if it drops.
+ble_connection_time_checker.py | Uptime / crash monitor | Connects, holds the link, logs exact connect/disconnect timestamps and session duration, reconnects every 2 s to catch watchdog reboots and instability under test.
+getting-all-details-of-ble.py | Recon - GATT enumeration | Connects and dumps every service, characteristic (UUID, handle, properties), readable value (hex/UTF-8) and descriptor in a tree; pre-attack attack-surface mapping.
+read_descriptors.py | Recon - descriptor extraction | Reads raw GATT descriptor bytes at fixed handles (default 19, 22) and prints repr + ASCII to check for improper access controls.
+thor.py | GATT write fuzzer | Explores all services, then sweeps write lengths 1..MTU-3 over every writable characteristic with checkpoint resume, drop reconnects, hang detection, notification capture and ATT error classification.
+check.sh | Environment doctor | Runs 12 lab checks (ButteRFly USB c0ff:eeee, /dev/ttyACM0, pyserial, ModemManager off, uucp group, whad, Sniffle, extcap, arm-none-eabi-gcc, wireshark, nrfutil, wble-central); exit code = number of failures.
+
+
+################################################################################
+# SECTION B - SWEYNTOOTH PoC SUITE (tools/sweyntooth_bluetooth_low_energy_attacks/)
+# Upstream ASSET Research BLE SoC attack PoCs.
+################################################################################
+
+CC2640R2_public_key_crash.py | DoS - pairing crash | Sends an invalid public key during LE pairing to crash the TI CC2640R2 BLE stack.
+CC_connection_req_crash.py | DoS - CONNECT_REQ overflow | Sends a malformed CONNECT_REQ with a manipulated length field to crash TI CC2540/CC2541 (CVE-2019-19194 family).
+DA14580_exploit_att_crash.py | DoS - ATT crash | Sends malformed ATT requests/exchange to crash the Dialog DA14580 BLE stack.
+DA14680_exploit_silent_overflow.py | DoS - silent overflow | Triggers a silent memory overflow in the Dialog DA14680 stack via crafted L2CAP/SMP traffic.
+esp32_hci_desync.py | DoS - HCI desync | Desynchronizes the ESP32 HCI/LL state machine with crafted commands to hang or crash the controller.
+invalid_channel_map.py | DoS - invalid channel map | Sends an LL_CHANNEL_MAP_IND with an illegal channel map to crash or wedge the link layer.
+link_layer_length_overflow.py | DoS - LL length overflow | Declares an oversized Link Layer payload length to trigger buffer overflow / memory corruption.
+llid_dealock.py | DoS - LLID deadlock | Uses mismatched LLID values to deadlock the Link Layer state machine so the device stops responding.
+Microchip_invalid_lcap_fragment.py | DoS - L2CAP fragment crash | Sends an invalid L2CAP fragment to crash Microchip BLE controllers.
+sequential_att_deadlock.py | DoS - ATT deadlock | Issues sequential ATT requests that deadlock the ATT server, freezing the connection.
+Telink_key_size_overflow.py | DoS - SMP key overflow | Sends an oversized encryption key size during SMP to overflow the Telink stack.
+Telink_zero_ltk_installation.py | Crypto bypass / DoS | Installs a zero-length LTK during pairing, breaking encryption and allowing unauthorized link access on Telink.
+zephyr_invalid_sequence.py | DoS - invalid LL sequence | Sends out-of-sequence Link Layer PDUs to crash or hang Zephyr-based BLE controllers.
+
+
+################################################################################
+# SECTION C - BLUETOOLKIT EXPLOIT MODULES (tools/BlueToolkit-upstream/exploits/)
+# 41 YAML modules. BLE-relevant ones are marked [BLE]; the rest are BR/EDR.
+################################################################################
+
+bleedingtooth_badchoice_cve_2020_12352.yaml | [BLE] RCE - BleedingTooth BadChoice | Malformed L2CAP packet triggers heap overflow in the Linux kernel Bluetooth stack (CVE-2020-12352).
+bleedingtooth_badkarma_cve_2020_12351.yaml | [BLE] RCE - BleedingTooth BadKarma | Type-confusion in the Linux kernel HCI/L2CAP path for remote code execution (CVE-2020-12351).
+bleedingtooth_badvibes_cve_2020_24490.yaml | [BLE] Info leak - BleedingTooth BadVibes | Out-of-bounds read in the Linux kernel Bluetooth stack leaks kernel memory (CVE-2020-24490).
+blueborne_CVE_2017_0785.yaml | [BLE] Info leak - BlueBorne | Information disclosure in Android Bluetooth (CVE-2017-0785).
+blueborne_CVE_2017_1000250.yaml | [BLE] Info leak - BlueBorne | Bluetooth daemon information leak in Linux (CVE-2017-1000250).
+blueborne_CVE_2017_1000251.yaml | [BLE] RCE - BlueBorne | Stack overflow in Linux Bluetooth daemon allowing remote code execution (CVE-2017-1000251).
+braktooth_au_rand_flooding.yaml | [BR/EDR] DoS - Braktooth | Floods AU_RAND during pairing to exhaust/crash the baseband.
+braktooth_duplicated_encapsulated_payload.yaml | [BR/EDR] DoS - Braktooth | Sends duplicated encapsulated payloads to desync the controller.
+braktooth_duplicated_iocap.yaml | [BR/EDR] DoS - Braktooth | Duplicated IO capability exchange to confuse pairing state.
+braktooth_feature_req_ping_pong.yaml | [BR/EDR] DoS - Braktooth | Ping-pongs LMP feature requests to hang the link manager.
+braktooth_feature_response_flooding.yaml | [BR/EDR] DoS - Braktooth | Floods LMP feature responses to exhaust controller resources.
+braktooth_invalid_feature_page_execution.yaml | [BR/EDR] DoS - Braktooth | Executes an invalid feature page to crash the baseband.
+braktooth_invalid_max_slot.yaml | [BR/EDR] DoS - Braktooth | Sends an invalid max-slot LMP parameter to crash the controller.
+braktooth_invalid_setup_complete.yaml | [BR/EDR] DoS - Braktooth | Sends an invalid setup-complete message to break the connection state machine.
+braktooth_invalid_timing_accuracy.yaml | [BR/EDR] DoS - Braktooth | Invalid timing-accuracy value to crash the baseband.
+braktooth_knob.yaml | [BR/EDR] Recon / attack selector | Master knob that selects and runs Braktooth attack variants.
+braktooth_lmp_auto_rate_overflow.yaml | [BR/EDR] DoS - Braktooth | LMP auto-rate overflow to corrupt controller memory.
+braktooth_lmp_invalid_transport.yaml | [BR/EDR] DoS - Braktooth | Invalid LMP transport parameter to crash the link manager.
+braktooth_lmp_max_slot_overflow.yaml | [BR/EDR] DoS - Braktooth | Max-slot overflow in LMP to trigger memory corruption.
+braktooth_lmp_overflow_2dh1.yaml | [BR/EDR] DoS - Braktooth | Overflow via 2-DH1 LMP packet to crash the baseband.
+braktooth_lmp_overflow_dm1.yaml | [BR/EDR] DoS - Braktooth | Overflow via DM1 LMP packet to crash the baseband.
+braktooth_paging_scan_disable.yaml | [BR/EDR] DoS - Braktooth | Disables paging scan so the device becomes unreachable.
+braktooth_repeated_host_connection.yaml | [BR/EDR] DoS - Braktooth | Repeated host connection attempts to exhaust connection slots.
+braktooth_sdp_oversized_element_size.yaml | [BR/EDR] DoS - Braktooth | Oversized SDP element size to overflow the SDP parser.
+braktooth_sdp_unkown_element_type.yaml | [BR/EDR] DoS - Braktooth | Unknown SDP element type to crash the SDP service.
+braktooth_truncated_lmp_accepted.yaml | [BR/EDR] DoS - Braktooth | Truncated LMP-accepted message to desync the link manager.
+braktooth_truncated_sco_link_request.yaml | [BR/EDR] DoS - Braktooth | Truncated SCO link request to crash the controller.
+braktooth_wrong_encapsulated_payload.yaml | [BR/EDR] DoS - Braktooth | Wrong encapsulated payload type to corrupt the baseband parser.
+custom_insecure_numeric_comparison_implementation.yaml | [BLE] Auth bypass check | Tests for insecure Numeric Comparison pairing implementation that accepts attacker-confirmed values.
+custom_legacy_pairing_second_check.yaml | [BLE] Auth bypass check | Checks whether the second legacy-pairing confirmation is skipped, allowing MITM.
+custom_method_confusion_check.yaml | [BLE] Auth bypass check | Probes for pairing method confusion between Just Works / Passkey / Numeric Comparison.
+custom_nino_check.yaml | [BLE] Auth bypass check | Tests for Numeric Comparison "No Input No Output" downgrade weakness.
+internalblue_CVE_2018_19860_0a_00.yaml | [BR/EDR] DoS - InternalBlue | Malformed LMP opcode 0x0A/0x00 to crash Broadcom/Cypress controllers (CVE-2018-19860).
+internalblue_CVE_2018_19860_16_0b.yaml | [BR/EDR] DoS - InternalBlue | Malformed LMP opcode 0x16/0x0B to crash Broadcom/Cypress controllers (CVE-2018-19860).
+internalblue_CVE_2018_19860_20_17.yaml | [BR/EDR] DoS - InternalBlue | Malformed LMP opcode 0x20/0x17 to crash Broadcom/Cypress controllers (CVE-2018-19860).
+internalblue_CVE_2018_5383_Invalid_second.yaml | [BR/EDR] DoS - InternalBlue | Invalid "second" LMP message to crash the controller (CVE-2018-5383 related).
+internalblue_knob.yaml | [BR/EDR] Recon / attack selector | Master knob that selects and runs InternalBlue attack variants.
+reconnaissance_SC_supported.yaml | [BLE] Recon | Checks whether Secure Connections pairing is supported by the target.
+reconnaissance_SSP_supported.yaml | [BR/EDR] Recon | Checks whether Secure Simple Pairing is supported by the target.
+reconnaissance_knob_ble.yaml | [BLE] Recon | Master knob that runs the BLE reconnaissance checks.
+reconnaissance_possible_BLUR.yaml | [BLE] Recon | Detects the BLUR / BLUFF Bluetooth address-tracking weakness.
+
+
+################################################################################
+# SECTION D - SBLEEDYGONZALES MODULES (tools/SbleedyGonzales/)
+# Multi-exploit CLI runner: modules/ holds runnable exploits, sbleedyCLI/ the engine.
+################################################################################
+
+sbleedy.py | Orchestrator CLI | Runs multiple BLE/BR-EDR exploits concurrently against a target and writes JSON reports.
+engines/exploitEngine.py | Exploit runner | Loads and executes exploit modules, manages per-exploit state and results.
+engines/connectionEngine.py | Connection manager | Handles target discovery, pairing and connection setup for exploits.
+engines/hardwareEngine.py | Hardware manager | Detects and flashes supported adapters (Blueshark, Bluing, nRF, etc.).
+engines/sbleedyEngine.py | Core engine | Coordinates recon, exploit scheduling, checkpointing and report generation.
+recon.py | Recon | Enumerates nearby BLE/BR-EDR devices and their advertised properties.
+report.py | Reporting | Serializes findings and exploit outcomes into JSON reports.
+checkpoint.py | Checkpointing | Persists run state so interrupted exploit campaigns can resume.
+modules/btlejacking.py | BLE hijack | Attempts connection takeover / hijacking of a BLE peripheral.
+modules/blueborne/CVE-2017-0781.py | [BR/EDR] RCE - BlueBorne | Android Bluetooth remote code execution (CVE-2017-0781).
+modules/blueborne/CVE-2017-0785.py | [BR/EDR] Info leak - BlueBorne | Android Bluetooth information disclosure (CVE-2017-0785).
+modules/bluekit/bluekit_legacy_pairing_second_check.py | [BLE] Auth bypass check | Legacy pairing second-confirmation bypass check.
+modules/bluekit/bluekit_nino_check.py | [BLE] Auth bypass check | Numeric Comparison No-Input-No-Output downgrade check.
+modules/bluekit/bluekit_recon_based_check.py | [BLE] Recon | Fingerprints the target and selects matching checks.
+modules/bluekit/custom_insecure_numeric_comparison_implementation.py | [BLE] Auth bypass check | Insecure Numeric Comparison implementation check.
+modules/bluekit/bluekit_method_confusion_check.py | [BLE] Auth bypass check | Pairing method-confusion check.
+modules/crackle/crackle_runner.py | [BLE] Crypto attack | Wraps Crackle to crack the BLE Legacy Pairing TK from captured traffic.
+modules/keyboah/keystroke-injection-android-linux.py | [BR/EDR] Injection | Keyboah-style HID keystroke injection into Android/Linux hosts.
+modules/sweyntooth/*.py | DoS suite | Bundled copies of the 13 SweynTooth PoCs listed in Section B.
+
+
+################################################################################
+# SECTION E - WHADBRO PROTOTYPES (tools/whadbro/)
+################################################################################
+
+dos.py | DoS prototype | Early draft of the connection-flood / saturation attack later productized in ble_busy.py.
+sooooooooo.py | Rogue central prototype | 773-line ancestor of own_packet_full.py: packet build, inject, custom connect and MTU handling.
+
+
+################################################################################
+# SECTION F - SNIFFLE TOOLING (tools/Sniffle/python_cli/)
+# Capture/verify side - not attacks, used to confirm packets went on-air.
+################################################################################
+
+sniff_receiver.py | Sniffer | Captures BLE advertisements/data and streams decoded PDUs (also Wireshark extcap backend).
+sniffle_extcap.py | Sniffer | Wireshark extcap shim for live capture from the CC1352 sniffer.
+scanner.py | Sniffer | Passive BLE scanner built on the Sniffle sniffer.
+advertiser.py | Injector | Advertises a fake BLE peripheral for test setups.
+initiator.py | Injector | Initiates connections for test setups.
+relay_master.py | Relay | Master-side BLE relay between two links.
+relay_slave.py | Relay | Slave-side BLE relay between two links.
+pcap_decoder.py | Utility | Decodes Sniffle pcap captures into readable PDU logs.
+reset.py | Utility | Resets the sniffer dongle.
+uart_test.py | Utility | Tests the sniffer UART link.
+version_check.py | Utility | Checks sniffer firmware/host version compatibility.
+
+
+################################################################################
+# QUICK ATTACK MAP
+################################################################################
+
+CRAFT PACKET .................... 1_build_packet.py
+CONNECTION HIJACK ............... 2_send_packet.py, 4_inject_raw.py, 5_scan_then_inject.py, 6_scan_inject_final.py, 7_connect_lifecycle.py
+CALIBRATE INJECTOR .............. 8_trigger_sweep.py
+DIAGNOSE / FORENSICS ............ 10_prepare_rootcause.py, 12_ab_diagnose.py, 13_death_autopsy.py
+KEEP ROGUE LINK ALIVE ........... 14_mtu_responder.py, 15_manual_att.py
+IDENTITY SPOOF .................. 11_max_fidelity.py
+FULL ROGUE CENTRAL .............. own_packet_full.py
+CRASH / DoS (BLE) ............... oooooooooooo.py, sweyntooth_crash.py, ble_busy.py, Section B PoCs
+GATT RECON ...................... getting-all-details-of-ble.py, read_descriptors.py
+GATT WRITE FUZZ ................. thor.py
+UPTIME MONITOR .................. ble_connection_time_checker.py
+ENVIRONMENT ..................... check.sh
+KNOWN-CVE MODULES ............... Section C (BlueToolkit YAML), Section D (SbleedyGonzales)
+CAPTURE / VERIFY ................ Section F (Sniffle)
+
+WARNING: Several of these are DoS/exploit-class tools. Use only on devices you
+own or have explicit written authorization to test.
+================================================================================

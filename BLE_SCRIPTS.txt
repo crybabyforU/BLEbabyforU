@@ -1,0 +1,215 @@
+================================================================================
+                    BLE (Bluetooth Low Energy) - SCRIPT LIST
+     One line per script: name | category | what it does | external device needed
+================================================================================
+Legend for "external device":
+  [DONGLE]  = WHAD ButteRFly nRF52840 USB dongle (VID:PID c0ff:eeee)
+  [HOST]    = built-in / USB Bluetooth adapter driven by BlueZ (no dongle)
+  [TARGET]  = the BLE peripheral / device under test
+  [SNIFFLE] = TI CC1352 / CC26x2 Launchpad running Sniffle firmware
+  [NRF52-ST]= Nordic nRF52840 dongle flashed with SweynTooth driver firmware
+================================================================================
+
+
+################################################################################
+# 1. CORE LAB SCRIPTS - LINK LAYER (need the WHAD dongle)
+################################################################################
+
+1_build_packet.py | Packet crafting (offline) | Builds a byte-exact 36-byte CONNECT_IND with custom AA/CRCInit/interval/hop/channel-map and runs spec legality checks | None - pure Python stdlib, no radio
+2_send_packet.py | Rogue central / hijack | Connects to the target with attacker-chosen Link Layer parameters and proves the rogue-parameter link carries GATT | [DONGLE] + [TARGET]
+4_inject_raw.py | Reactive LL injection | Arms the injector with 4 trigger strategies to fire a raw CONNECT_IND inside the advertising inter-frame space | [DONGLE] + [TARGET]
+5_scan_then_inject.py | Synchronized hijack | Scans to confirm advertising, reopens as injector, arms AdvA triggers, watches for the connection to be taken | [DONGLE] + [TARGET]
+6_scan_inject_final.py | Low-latency connection race | Single-instance continuous RX that counts target ADVs and arms triggers without a dongle reopen | [DONGLE] + [TARGET]
+7_connect_lifecycle.py | Hijack + acceptance oracle | Injects CONNECT_IND on ADV detection and measures the ADV silence gap to confirm the 2 s supervision timeout was obeyed | [DONGLE] + [TARGET]
+8_trigger_sweep.py | Injector calibration | Sweeps AdvA pattern byte offsets 0-30 to find the offset that makes reactive injection fire reliably | [DONGLE] + [TARGET]
+10_prepare_rootcause.py | Injection root-cause probe | Wraps the raw packet as BTLE/BTLE_DATA so prepare() accepts it, then compares manual TX vs ReceptionTrigger | [DONGLE] + [TARGET]
+11_max_fidelity.py | Identity spoofing (InitA clone) | Claims InitA FF:EE:DD:CC:BB:AA, raw-injects the packet 5x, then connects with custom LLData and enumerates GATT | [DONGLE] + [TARGET]
+12_ab_diagnose.py | Parameter-tolerance diagnosis | A/B tests default vs custom LLData and sweeps 80/160/320 ms intervals to find which parameters kill the link | [DONGLE] + [TARGET]
+13_death_autopsy.py | Post-mortem / crash forensics | Dumps LL control PDUs and decodes HCI termination reasons while the link idles | [DONGLE] + [TARGET]
+14_mtu_responder.py | Link keep-alive exploit | Intercepts ATT_EXCHANGE_MTU_REQ and answers a raw MTU Response (247) to stop the ~200 ms LL_TERMINATE_IND kill | [DONGLE] + [TARGET]
+15_manual_att.py | Raw ATT stack / ATT fuzzing | Hand-builds L2CAP+ATT frames inside LL data PDUs and runs service/characteristic discovery below the host stack | [DONGLE] + [TARGET]
+oooooooooooo.py | DoS - length-field fuzzer | Declares N payload bytes while truncating the buffer (CC2540 CVE-2019-19194 style) and uses ADV-gap timing to detect crashes | [DONGLE] + [TARGET]
+own_packet_full.py | Full rogue-central framework | 8-step pipeline: audit, scan, build/verify packet, inject, spoof InitA, custom connect, MTU pump, manual GATT discovery | [DONGLE] + [TARGET]
+sweyntooth_crash.py | DoS - malformed CONNECT_IND crasher | Fires 9 named SweynTooth vectors (trunc0/12/18/26, iv0, to0, hop0, over247, valid34) with an ADV-interval crash oracle | [DONGLE] + [TARGET]
+
+
+################################################################################
+# 2. CORE LAB SCRIPTS - HOST STACK (need a normal Bluetooth adapter)
+################################################################################
+
+ble_busy.py | DoS - link saturation | Infinite fast connect/disconnect loop (0.5 s timeout, 0.05 s gap) that keeps the target busy so real centrals cannot connect | [HOST] + [TARGET]
+pairing_req_multiple.py | DoS - pairing flood | Rapid pairing/connection requests until one connect, then holds that link stable and silently reconnects | [HOST] + [TARGET]
+ble_connection_time_checker.py | Uptime / crash monitor | Holds the link, logs connect/disconnect timestamps and session duration, reconnects every 2 s to catch reboots | [HOST] + [TARGET]
+getting-all-details-of-ble.py | Recon - GATT enumeration | Dumps every service, characteristic (UUID/handle/properties), readable value and descriptor as a tree | [HOST] + [TARGET]
+read_descriptors.py | Recon - descriptor extraction | Reads raw GATT descriptor bytes at fixed handles (default 19, 22) and prints repr + ASCII | [HOST] + [TARGET]
+thor.py | GATT write fuzzer | Explores services then sweeps write lengths 1..MTU-3 on every writable characteristic with checkpoint resume, reconnects and hang detection | [HOST] + [TARGET]
+
+
+################################################################################
+# 3. ENVIRONMENT / DOCS
+################################################################################
+
+check.sh | Environment doctor | 12 lab checks (ButteRFly USB, /dev/ttyACM0, pyserial, ModemManager, uucp, whad, Sniffle, extcap, arm gcc, wireshark, nrfutil, wble-central) | None required to run; verifies [DONGLE] and [SNIFFLE] if plugged in
+BLE_ATTACK_SCRIPTS_LIST.txt | Documentation | Combined one-line inventory of all lab scripts | None
+BLE_SCRIPTS.txt | Documentation | This file - BLE-only script list with hardware | None
+CLASSIC_BR_EDR_SCRIPTS.txt | Documentation | Classic/BR-EDR-only script list with hardware | None
+SCRIPTS_FULL_DETAILS.txt | Documentation | Detailed per-script breakdown incl. hardware | None
+HARDWARE_REQUIRED.txt | Documentation | External device reference for the lab | None
+
+
+################################################################################
+# 4. SWEYNTOOTH PoC SUITE (tools/sweyntooth_bluetooth_low_energy_attacks/)
+# All are BLE Link Layer / SMP / ATT attacks. Hardware: [NRF52-ST] + [TARGET]
+################################################################################
+
+CC2640R2_public_key_crash.py | DoS - pairing crash | Sends an invalid public key during LE pairing to crash the TI CC2640R2 stack | [NRF52-ST] + [TARGET]
+CC_connection_req_crash.py | DoS - CONNECT_REQ overflow | Malformed CONNECT_REQ length field crashes TI CC2540/CC2541 (CVE-2019-19194 family) | [NRF52-ST] + [TARGET]
+DA14580_exploit_att_crash.py | DoS - ATT crash | Malformed ATT requests/exchange crash the Dialog DA14580 stack | [NRF52-ST] + [TARGET]
+DA14680_exploit_silent_overflow.py | DoS - silent overflow | Crafted L2CAP/SMP traffic triggers a silent memory overflow in Dialog DA14680 | [NRF52-ST] + [TARGET]
+esp32_hci_desync.py | DoS - HCI desync | Desynchronizes the ESP32 HCI/LL state machine to hang or crash the controller | [NRF52-ST] + [TARGET]
+invalid_channel_map.py | DoS - invalid channel map | LL_CHANNEL_MAP_IND with an illegal map crashes or wedges the link layer | [NRF52-ST] + [TARGET]
+link_layer_length_overflow.py | DoS - LL length overflow | Oversized Link Layer payload length triggers buffer overflow / memory corruption | [NRF52-ST] + [TARGET]
+llid_dealock.py | DoS - LLID deadlock | Mismatched LLID values deadlock the Link Layer state machine | [NRF52-ST] + [TARGET]
+Microchip_invalid_lcap_fragment.py | DoS - L2CAP fragment crash | Invalid L2CAP fragment crashes Microchip BLE controllers | [NRF52-ST] + [TARGET]
+sequential_att_deadlock.py | DoS - ATT deadlock | Sequential ATT requests deadlock the ATT server and freeze the connection | [NRF52-ST] + [TARGET]
+Telink_key_size_overflow.py | DoS - SMP key overflow | Oversized encryption key size during SMP overflows the Telink stack | [NRF52-ST] + [TARGET]
+Telink_zero_ltk_installation.py | Crypto bypass / DoS | Installs a zero-length LTK during pairing, breaking encryption on Telink | [NRF52-ST] + [TARGET]
+zephyr_invalid_sequence.py | DoS - invalid LL sequence | Out-of-sequence Link Layer PDUs crash or hang Zephyr-based controllers | [NRF52-ST] + [TARGET]
+
+
+################################################################################
+# 5. BLE MODULES INSIDE SBLEEDYGONZALES (tools/SbleedyGonzales/)
+################################################################################
+
+modules/btlejacking.py | BLE hijack / sniff | Runs Btlejack to listen for and hijack an existing BLE connection | BBC micro:bit or nRF52 with Btlejack firmware + [TARGET]
+modules/crackle/crackle_runner.py | Crypto attack | Cracks the BLE Legacy Pairing TK from a captured pairing pcap | No radio needed - needs a captured .pcap file
+modules/sweyntooth/*.py | DoS suite | Bundled copies of the 13 SweynTooth PoCs above | [NRF52-ST] + [TARGET]
+sbleedyCLI/*.py (engine) | Orchestrator framework | Runs BLE/classic exploits concurrently, manages hardware flashing and JSON reports | Hardware depends on the exploit selected
+
+
+################################################################################
+# 6. WHADBRO PROTOTYPES (tools/whadbro/)
+################################################################################
+
+dos.py | DoS prototype | Early draft of the connection-flood / saturation attack later productized as ble_busy.py | [DONGLE] + [TARGET]
+sooooooooo.py | Rogue central prototype | 773-line ancestor of own_packet_full.py: packet build, inject, custom connect, MTU handling | [DONGLE] + [TARGET]
+
+
+################################################################################
+# 7. SNIFFLE CAPTURE / TEST TOOLING (tools/Sniffle/python_cli/)
+# Capture and verification side - not attacks. Hardware: [SNIFFLE] + [TARGET]
+################################################################################
+
+sniff_receiver.py | Sniffer | Captures BLE advertisements/data and streams decoded PDUs; also the Wireshark extcap backend | [SNIFFLE] + [TARGET]
+sniffle_extcap.py | Sniffer | Wireshark extcap shim for live capture from the CC1352 sniffer | [SNIFFLE] + [TARGET]
+scanner.py | Sniffer | Passive BLE scanner built on the Sniffle sniffer | [SNIFFLE] + [TARGET]
+advertiser.py | Injector | Advertises a fake BLE peripheral for test setups | [SNIFFLE]
+initiator.py | Injector | Initiates BLE connections for test setups | [SNIFFLE] + [TARGET]
+relay_master.py | Relay | Master-side BLE relay between two links | 2x [SNIFFLE] (or 1 sniffer + 1 controller) + [TARGET]
+relay_slave.py | Relay | Slave-side BLE relay between two links | 2x [SNIFFLE] (or 1 sniffer + 1 controller) + [TARGET]
+pcap_decoder.py | Utility | Decodes Sniffle pcap captures into readable PDU logs | None - offline pcap only
+reset.py | Utility | Resets the sniffer dongle | [SNIFFLE]
+uart_test.py | Utility | Tests the sniffer UART link | [SNIFFLE]
+version_check.py | Utility | Checks sniffer firmware/host version compatibility | [SNIFFLE]
+
+
+################################################################################
+# 8. BLE MODULE INSIDE BLUETOOLKIT (tools/BlueToolkit-upstream/exploits/)
+################################################################################
+
+reconnaissance_knob_ble.yaml | Recon | Runs the BLE reconnaissance checks against a target | [HOST] + [TARGET]
+
+
+################################################################################
+# 9. SWEYNTOOTH "extras" PoCs (tools/sweyntooth_bluetooth_low_energy_attacks/extras/)
+# Additional non-compliance / overflow probes not in the main 13.
+# Hardware: [NRF52-ST] + [TARGET] for all of them.
+################################################################################
+
+extras/anomaly_unexpected_encryption_start.py | Anomaly probe | Starts encryption at an unexpected point in the pairing sequence to test state-machine handling | [NRF52-ST] + [TARGET]
+extras/CC2540_connection_req_crash_truncated.py | DoS - truncated CONNECT_REQ | Sends a physically truncated CONNECT_REQ to crash TI CC2540 | [NRF52-ST] + [TARGET]
+extras/CC2540_truncated_connection_success.py | Non-compliance check | Sends a truncated CONNECT_IND that the CC2540 wrongly accepts, proving a spec violation | [NRF52-ST] + [TARGET]
+extras/DA14680_att_mtu_length_114_silent_overflow_accepted.py | Silent overflow | ATT MTU length 114 accepted and silently overflows the DA14680 buffer | [NRF52-ST] + [TARGET]
+extras/DA14680_att_mtu_length_5_malformed_accepted.py | Malformed ATT probe | ATT MTU length 5 malformed request is wrongly accepted by DA14680 | [NRF52-ST] + [TARGET]
+extras/DA14680_att_read_100_silent_overflow_crash.py | DoS - ATT read overflow | ATT read of 100 bytes triggers a silent overflow and crash on DA14680 | [NRF52-ST] + [TARGET]
+extras/DA14680_truncated_l2cap_crash.py | DoS - truncated L2CAP | Truncated L2CAP frame crashes the DA14680 stack | [NRF52-ST] + [TARGET]
+extras/knob_tester_ble.py | Attack selector | Runs a selected set of SweynTooth BLE pairing/LL variants | [NRF52-ST] + [TARGET]
+extras/Microchip_and_others_non_compliant_connection.py | Non-compliance check | Sends a non-compliant connection request accepted by Microchip and others | [NRF52-ST] + [TARGET]
+extras/non_compliance_data_during_encryption_setup.py | Non-compliance check | Sends data PDUs during encryption setup to test ordering enforcement | [NRF52-ST] + [TARGET]
+extras/non_compliance_dhcheck_skip.py | MitM / info leak | Skips the Diffie-Hellman check during LE Secure Connections pairing | [NRF52-ST] + [TARGET]
+extras/non_compliance_multiple_version.py | Non-compliance check | Sends multiple LL version exchanges to test state handling | [NRF52-ST] + [TARGET]
+extras/non_compliance_nonzero_ediv_rand.py | Non-compliance check | Sends non-zero EDIV/RAND values where the spec expects zero | [NRF52-ST] + [TARGET]
+
+
+################################################################################
+# 10. SBLEEDYGONZALES EXPLOIT DEFINITIONS - BLE SUBSET
+# tools/SbleedyGonzales/exploits/ (YAML configs run by sbleedy)
+################################################################################
+
+att_read_100_silent_overflow_crash.yaml | DoS | ATT read of 100 bytes silently overflows and crashes the target | [HOST] + [NRF52-ST] + [TARGET]
+btlejacking.yaml | MitM / info leak | Hijacks or sniffs an existing BLE connection with Btlejack | [MICROBIT] + [TARGET]
+connection_request_crash_truncated.yaml | DoS | Truncated connection request crashes the target | [HOST] + [NRF52-ST] + [TARGET]
+knob_ble.yaml | Attack selector | Runs a selected set of BLE SweynTooth checks | [HOST] + [NRF52-ST] + [TARGET]
+link_layer_encryption.yaml | MitM / info leak | Link Layer encryption attack against the BLE pairing/encryption procedure | [HOST] + [TARGET]
+sweyntooth_dhcheck_skip.yaml | MitM / info leak | Skips the LE Secure Connections DH check | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_esp32_hci_desync.yaml | DoS | HCI desync against the ESP32 controller | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_invalid_channel_map.yaml | DoS | Invalid LL channel map | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_invalid_connection_request.yaml | DoS | Invalid connection request parameters | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_invalid_l2cap_fragment.yaml | DoS | Invalid L2CAP fragment crashes the controller | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_key_size_overflow.yaml | DoS | Oversized SMP key size overflows the stack | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_link_layer_length_overflow.yaml | DoS | Link Layer length-field overflow | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_llid_deadlock.yaml | DoS | LLID mismatch deadlocks the link layer | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_public_key_crash.yaml | DoS | Invalid public key during pairing crashes the stack | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_sequential_att_deadlock.yaml | DoS | Sequential ATT requests deadlock the ATT server | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_silent_length_overflow.yaml | DoS | Silent length overflow in the Link Layer | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_truncated_l2cap.yaml | DoS | Truncated L2CAP frame crashes the target | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_zephyr_invalid_sequence.yaml | DoS | Out-of-sequence PDUs hang Zephyr controllers | [HOST] + [NRF52-ST] + [TARGET]
+sweyntooth_zero_ltk_installation.yaml | Crypto bypass / DoS | Installs a zero-length LTK, breaking encryption | [HOST] + [NRF52-ST] + [TARGET]
+truncated_l2cap_crash.yaml | DoS | Truncated L2CAP frame crashes the target | [HOST] + [NRF52-ST] + [TARGET]
+
+
+################################################################################
+# 11. ZEPHYR TEST SCRIPTS (tools/ZEPHYR/pylol/)
+# Used when the nRF52840 dongle runs ZEPHYR HCI firmware instead of WHAD.
+# [ZEPHYR-HCI] = nRF52840 dongle flashed with zephyr.bin (shows as hci1)
+################################################################################
+
+adv-checker.py | BLE test | Registers a BlueZ D-Bus advertisement and checks it is accepted on the Zephyr HCI adapter | [ZEPHYR-HCI]
+adv-connect-wireshark.py | BLE test / recon | Advertises, then on central connect dumps services/characteristics/handles to gatt_handles.txt | [ZEPHYR-HCI]
+ble_connect.py | BLE test | Connects via bleak and writes a UTF-8 payload to a fixed characteristic UUID | [HOST] + [TARGET]
+connect-gatt-char.py | BLE test | Registers a BlueZ D-Bus GATT service/characteristic on the Zephyr adapter | [ZEPHYR-HCI]
+nrf-api-check.py | Utility | Probes the nRF dongle/API and required host commands | [DONGLE] or [ZEPHYR-HCI]
+
+
+################################################################################
+# 12. SUPPORT LIBRARIES (not standalone attacks, but required)
+################################################################################
+
+Sniffle/python_cli/sniffle/*.py | Sniffer library | BLE decoder, CRC, whitening, channelizer, pcap and relay support code used by the Sniffle CLIs | [SNIFFLE]
+SbleedyGonzales/helpers/blueshark/ | Sniffer helper | nRF Sniffer API (SnifferAPI) used by the Sbleedy sniffer helper | nRF52 sniffer dongle
+SbleedyGonzales/helpers/pybluez/ | Bluetooth library | Vendored PyBluez (classic + BLE socket API) used by Sbleedy | [HOST-BR]
+SbleedyGonzales/helpers/bluing/ | Recon helper | Bluing CLI for BR/EDR LMP scan, LE scan, GATT scan and address spoofing | [BLUING] or [HOST-BR]
+sbleedyCLI/*.py | Orchestrator engine | sbleedy CLI, engines, models, recon, report, checkpoint | Hardware depends on exploit
+BlueToolkit-upstream/bluekit/ | Orchestrator engine | bluekit CLI, engine, exploit/hardware factories, recon, report, tests, verifyconn | Hardware depends on exploit
+
+
+################################################################################
+# QUICK BLE ATTACK MAP
+################################################################################
+
+CRAFT PACKET ............ 1_build_packet.py
+HIJACK CONNECTION ....... 2_send_packet.py, 4_inject_raw.py, 5_scan_then_inject.py, 6_scan_inject_final.py, 7_connect_lifecycle.py
+CALIBRATE INJECTOR ...... 8_trigger_sweep.py
+DIAGNOSE / FORENSICS .... 10_prepare_rootcause.py, 12_ab_diagnose.py, 13_death_autopsy.py
+KEEP ROGUE LINK ALIVE ... 14_mtu_responder.py, 15_manual_att.py
+IDENTITY SPOOF .......... 11_max_fidelity.py
+FULL ROGUE CENTRAL ...... own_packet_full.py
+CRASH / DoS ............. oooooooooooo.py, sweyntooth_crash.py, ble_busy.py, Section 4 PoCs
+GATT RECON .............. getting-all-details-of-ble.py, read_descriptors.py
+GATT WRITE FUZZ ......... thor.py
+UPTIME MONITOR .......... ble_connection_time_checker.py
+CAPTURE / VERIFY ........ Section 7 (Sniffle)
+
+WARNING: DoS and exploit-class tools. Use only on devices you own or have
+explicit written authorization to test.
+================================================================================

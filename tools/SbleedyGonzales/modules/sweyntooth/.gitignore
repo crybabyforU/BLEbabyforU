@@ -1,0 +1,11 @@
+*.pyc
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.log
+**/build/**
+release/
+*.egg
+logs/*
+!logs/.gitkeep
+*.pcap

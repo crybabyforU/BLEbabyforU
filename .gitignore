@@ -1,0 +1,24 @@
+# Run artifacts (logs, summaries, packet dumps, captures)
+ble-runs/
+
+# Local Python environments
+venv/
+.venv/
+venv2/
+venv3/
+knob-venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+
+# Per-tool local output
+tools/SbleedyGonzales/results/
+tools/sweyntooth_bluetooth_low_energy_attacks/logs/
+
+# Editors / OS noise
+.DS_Store
+Thumbs.db
+*.swp

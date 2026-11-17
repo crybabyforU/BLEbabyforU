@@ -1,0 +1,26 @@
+# crybabyforu - Python packages for WINDOWS hosts
+#
+# Differences from requirements.txt (Linux):
+#   - no dbus-fast / dbus-python (Linux D-Bus only)
+#   - bleak uses the WinRT backend, bundled with bleak itself
+#
+# Windows coverage with this set:
+#   doctor, offline, recon, host stages  -> fully working (host radio via WinRT)
+#   sweyntooth / sniffle stages          -> working via USB serial (COMx)
+#   whad stage                           -> experimental (WHAD over COMx)
+#   zephyr BlueZ D-Bus scripts           -> NOT available on Windows
+
+# Runner + host/recon + Zephyr ble_connect
+bleak==3.0.2
+
+# WHAD / ButteRFly scripts (serial transport works on Windows)
+whad==1.2.17
+
+# Serial drivers (SweynTooth, Sniffle) - also provides COM-port USB IDs
+pyserial==3.5
+
+# Modern Scapy (the old bundled Scapy is used only by SweynTooth)
+scapy==2.6.1
+
+# SweynTooth helper library
+colorama==0.4.6

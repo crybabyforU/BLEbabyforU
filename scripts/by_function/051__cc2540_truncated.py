@@ -1,0 +1,1 @@
+../../tools/sweyntooth_bluetooth_low_energy_attacks/extras/CC2540_connection_req_crash_truncated.py

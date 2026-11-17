@@ -1,0 +1,1 @@
+../../tools/Sniffle/python_cli/uart_test.py

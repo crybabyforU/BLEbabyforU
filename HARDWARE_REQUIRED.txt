@@ -1,0 +1,243 @@
+================================================================================
+                 BLE LAB - EXTERNAL HARDWARE / DEVICE REFERENCE
+================================================================================
+What each device is, how it connects, what it must be flashed with, and which
+scripts need it. Use this to know what to plug in before running a script.
+================================================================================
+
+
+################################################################################
+# 1. WHAD BUTTERFLY - nRF52840 USB DONGLE
+################################################################################
+
+TAG:      [DONGLE]
+WHAT:     Nordic nRF52840 USB dongle running WHAD "ButteRFly" firmware. Acts as a
+          BLE sniffer / injector / central over a serial protocol.
+USB IDs:  c0ff:eeee (normal), 1915:521f (bootloader/DFU)
+PORT:     /dev/ttyACM0 (fallback /dev/ttyACM1), addressed as uart0/uart1 in WHAD
+FLASH:    ButteRFly firmware (already installed); ZEPHYR/ is an alternative
+          HCI firmware image if you want the dongle to behave as a normal adapter.
+NEEDS:    uucp group membership, ModemManager disabled, pyserial can open the port.
+USED BY:
+  2_send_packet.py
+  4_inject_raw.py
+  5_scan_then_inject.py
+  6_scan_inject_final.py
+  7_connect_lifecycle.py
+  8_trigger_sweep.py
+  10_prepare_rootcause.py
+  11_max_fidelity.py
+  12_ab_diagnose.py
+  13_death_autopsy.py
+  14_mtu_responder.py
+  15_manual_att.py
+  oooooooooooo.py
+  own_packet_full.py
+  sweyntooth_crash.py
+  tools/whadbro/dos.py
+  tools/whadbro/sooooooooo.py
+  (verified by check.sh)
+
+
+################################################################################
+# 2. HOST BLUETOOTH ADAPTER - BLE
+################################################################################
+
+TAG:      [HOST]
+WHAT:     The computer's built-in Bluetooth chip or a USB BLE adapter, driven by
+          BlueZ. Used by all bleak-based scripts. No special firmware needed.
+CHECK:    hciconfig / bluetoothctl list should show an adapter (hci0).
+USED BY:
+  ble_busy.py
+  ble_connection_time_checker.py
+  getting-all-details-of-ble.py
+  read_descriptors.py
+  thor.py
+  tools/BlueToolkit-upstream/exploits/reconnaissance_knob_ble.yaml
+
+
+################################################################################
+# 3. HOST BLUETOOTH ADAPTER - CLASSIC / BR-EDR
+################################################################################
+
+TAG:      [HOST-BR]
+WHAT:     A Bluetooth adapter that supports BR/EDR (classic), driven by BlueZ.
+          Most built-in laptop adapters work; USB CSR8510 dongles are common.
+CHECK:    hcitool dev / bluetoothctl list, and the adapter must support classic.
+USED BY:
+  All tools/BlueToolkit-upstream/exploits/*.yaml with hardware: default
+    (BleedingTooth, BlueBorne, custom_* pairing checks, reconnaissance_*)
+  tools/SbleedyGonzales/modules/blueborne/CVE-2017-0781.py
+  tools/SbleedyGonzales/modules/blueborne/CVE-2017-0785.py
+  tools/SbleedyGonzales/modules/keyboah/keystroke-injection-android-linux.py
+  tools/SbleedyGonzales/modules/bluekit/bluekit_legacy_pairing_second_check.py
+  tools/SbleedyGonzales/modules/bluekit/bluekit_method_confusion_check.py
+  tools/SbleedyGonzales/modules/bluekit/bluekit_nino_check.py
+  tools/SbleedyGonzales/modules/bluekit/custom_insecure_numeric_comparison_implementation.py
+  tools/SbleedyGonzales/sbleedyCLI/recon.py
+
+
+################################################################################
+# 4. NORDIC nRF52840 + SWEYNTOOTH DRIVER FIRMWARE
+################################################################################
+
+TAG:      [NRF52-ST]
+WHAT:     Nordic nRF52840 USB dongle flashed with the SweynTooth driver firmware.
+          It sends/receives raw BLE Link Layer packets over serial.
+FLASH:    nrfutil dfu usb-serial -p /dev/ttyACM0 -pkg nRF52_driver_firmware.zip
+          (hold the small reset button while plugging in to enter DFU mode)
+PORT:     /dev/ttyACM0 on Linux (COMx on Windows)
+USED BY:
+  All 13 tools/sweyntooth_bluetooth_low_energy_attacks/*.py
+  tools/SbleedyGonzales/modules/sweyntooth/*.py
+  sbleedy -fhw nRF52840 (flashes sweyntooth_nRF52840_firmware.zip)
+
+
+################################################################################
+# 5. TI CC1352 / CC26x2 LAUNCHPAD - SNIFFLE SNIFFER
+################################################################################
+
+TAG:      [SNIFFLE]
+WHAT:     TI CC1352/CC26x2 Launchpad running Sniffle firmware. Independent BLE
+          capture path used to verify that injected packets really went on-air.
+SUPPORTED BOARDS:
+  LAUNCHXL-CC26X2R1, LP-CC2652RB, LAUNCHXL-CC1352R1, LAUNCHXL-CC1352P,
+  LP-CC2652R7, LP-CC1352P7, LP-CC2651P3, LP-EM-CC1354P10, EC CatSniffer V3
+FLASH:    make load in tools/Sniffle/fw (uses the on-board XDS110 debugger)
+USED BY:
+  tools/Sniffle/python_cli/sniff_receiver.py
+  tools/Sniffle/python_cli/sniffle_extcap.py
+  tools/Sniffle/python_cli/scanner.py
+  tools/Sniffle/python_cli/advertiser.py
+  tools/Sniffle/python_cli/initiator.py
+  tools/Sniffle/python_cli/relay_master.py
+  tools/Sniffle/python_cli/relay_slave.py
+  tools/Sniffle/python_cli/reset.py
+  tools/Sniffle/python_cli/uart_test.py
+  tools/Sniffle/python_cli/version_check.py
+  (also verified by check.sh)
+
+
+################################################################################
+# 6. ESP32 + BRAKTOOTH FIRMWARE
+################################################################################
+
+TAG:      [ESP32]
+WHAT:     ESP32 development board flashed with the Braktooth bt_exploiter
+          firmware. Injects malformed LMP/baseband packets over classic Bluetooth.
+PORT:     /dev/ttyUSB1 (default in the BlueToolkit YAML commands)
+USED BY:
+  All tools/BlueToolkit-upstream/exploits/braktooth_*.yaml (22 modules)
+
+
+################################################################################
+# 7. ROOTED NEXUS 5 + INTERNALBLUE (or CYW20735)
+################################################################################
+
+TAG:      [NEXUS5]
+WHAT:     Rooted Nexus 5 phone running InternalBlue, used as the attack radio for
+          Broadcom/Cypress controller attacks. A CYW20735 board is an alternative
+          (two exploits will not work on it).
+USED BY:
+  All tools/BlueToolkit-upstream/exploits/internalblue_*.yaml (5 modules)
+
+
+################################################################################
+# 8. BBC MICRO:BIT / nRF52 + BTLEJACK FIRMWARE
+################################################################################
+
+TAG:      [MICROBIT]
+WHAT:     BBC micro:bit (or nRF52 board) flashed with Btlejack firmware, used to
+          sniff and hijack existing BLE connections.
+USED BY:
+  tools/SbleedyGonzales/modules/btlejacking.py
+  sbleedy -fhw microbit
+
+
+################################################################################
+# 9. CSR8510 USB DONGLE + BLUING FIRMWARE
+################################################################################
+
+TAG:      [BLUING]
+WHAT:     CSR8510-class USB Bluetooth dongle running Bluing firmware, used for
+          BR/EDR LMP reconnaissance.
+USED BY:
+  tools/SbleedyGonzales/modules/bluekit/bluekit_recon_based_check.py
+
+
+################################################################################
+# 10. TARGET DEVICES
+################################################################################
+
+TAG:      [TARGET]
+WHAT:     The device under test. Can be any BLE peripheral, classic device,
+          development board or phone that you own or are authorized to test.
+
+Default BLE target used in the lab scripts:
+  C0:00:00:41:73:AC   (random static address, device name "MDT2410161")
+
+Other targets referenced in the scripts:
+  00:1F:FF:C1:63:9F
+  80:E1:27:4D:A8:3F
+
+WARNING: Never run DoS or exploit modules against devices you do not own or do
+not have explicit written authorization to test.
+
+
+################################################################################
+# 11. NORDIC nRF52840 + ZEPHYR HCI FIRMWARE
+################################################################################
+
+TAG:      [ZEPHYR-HCI]
+WHAT:     nRF52840 USB dongle flashed with the ZEPHYR USB-HCI firmware
+          (tools/ZEPHYR/zephyr.bin + mcuboot bundle). It shows up as a normal
+          BlueZ adapter (usually hci1) instead of the WHAD serial protocol.
+FLASH:    Flash zephyr.bin with nrfutil / nRF Connect, then bind it to BlueZ.
+USED BY:
+  tools/ZEPHYR/pylol/adv-checker.py
+  tools/ZEPHYR/pylol/adv-connect-wireshark.py
+  tools/ZEPHYR/pylol/connect-gatt-char.py
+  tools/ZEPHYR/pylol/nrf-api-check.py
+
+
+################################################################################
+# 12. nRF52 SNIFFER DONGLE + BLUESHARK
+################################################################################
+
+TAG:      nRF52 sniffer
+WHAT:     Nordic nRF52 dongle running the nRF Sniffer firmware, driven through
+          the SnifferAPI bundled in SbleedyGonzales/helpers/blueshark/.
+USED BY:
+  SbleedyGonzales/helpers/blueshark/blueshark.py
+  SbleedyGonzales/helpers/blueshark/sniffer.py
+  sbleedy sniffer features
+
+
+################################################################################
+# PLUG-IN CHECKLIST BY SCRIPT FAMILY
+################################################################################
+
+Link-layer / WHAD scripts ....... [DONGLE] + [TARGET]
+Host-stack BLE scripts ......... [HOST] + [TARGET]
+SweynTooth PoCs ................ [NRF52-ST] + [TARGET]
+BlueToolkit Braktooth .......... [ESP32] + [TARGET]
+BlueToolkit InternalBlue ....... [NEXUS5] + [TARGET]
+BlueToolkit default / Sbleedy .. [HOST-BR] + [TARGET]
+Btlejack ....................... [MICROBIT] + [TARGET]
+Bluing recon ................... [BLUING] + [TARGET]
+Sniffle capture ................ [SNIFFLE] + [TARGET]
+ZEPHYR HCI tests ............... [ZEPHYR-HCI]
+Sbleedy sniffer ................ nRF52 sniffer dongle
+Offline only ................... 1_build_packet.py, pcap_decoder.py,
+                                 crackle_runner.py, documentation files
+
+
+################################################################################
+# ENVIRONMENT VERIFICATION
+################################################################################
+
+Run:  ~/ble-lab/scripts/check.sh
+It checks: ButteRFly USB c0ff:eeee, /dev/ttyACM0, pyserial open, ModemManager off,
+uucp group, import whad, Sniffle package, Sniffle extcap, arm-none-eabi-gcc,
+wireshark, nrfutil, wble-central. Exit code = number of failures.
+================================================================================

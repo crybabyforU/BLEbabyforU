@@ -1,0 +1,1 @@
+../../tools/sweyntooth_bluetooth_low_energy_attacks/CC2640R2_public_key_crash.py
