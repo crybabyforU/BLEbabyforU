@@ -18,7 +18,7 @@ path for each tool.
 | 2 | packet builder | `scripts/1_build_packet.py` | none |
 | 3 | GATT enumeration | `scripts/getting-all-details-of-ble.py` | HOST,TARGET |
 | 4 | descriptor reader | `scripts/read_descriptors.py` | HOST,TARGET |
-| 5 | GATT explore | `scripts/thor.py` | HOST,TARGET |
+| 5† | GATT explore (explore mode) | `scripts/thor.py` | HOST,TARGET |
 | 6 | firmware probe | `tools/Sniffle/python_cli/version_check.py` | SNIFFLE |
 | 7 | UART test | `tools/Sniffle/python_cli/uart_test.py` | SNIFFLE |
 | 8 | passive scan | `tools/Sniffle/python_cli/scanner.py` | SNIFFLE |
@@ -40,8 +40,8 @@ path for each tool.
 | 24 | disconnect autopsy | `scripts/13_death_autopsy.py` | DONGLE,TARGET |
 | 25 | MTU responder | `scripts/14_mtu_responder.py` | DONGLE,TARGET |
 | 26 | manual ATT | `scripts/15_manual_att.py` | DONGLE,TARGET |
-| 27 | packet connector | `scripts/oooooooooooo.py` | DONGLE,TARGET |
-| 28 | length fuzzer | `scripts/oooooooooooo.py` | DONGLE,TARGET |
+| 27† | packet connector (connect mode) | `scripts/oooooooooooo.py` | DONGLE,TARGET |
+| 28† | length fuzzer (fuzz mode) | `scripts/oooooooooooo.py` | DONGLE,TARGET |
 | 29 | rogue pipeline | `scripts/own_packet_full.py` | DONGLE,TARGET |
 | 30 | crash vectors | `scripts/sweyntooth_crash.py` | DONGLE,TARGET |
 | 31 | prototype DoS | `tools/whadbro/dos.py` | DONGLE,TARGET |
@@ -49,7 +49,7 @@ path for each tool.
 | 33 | uptime monitor | `scripts/ble_connection_time_checker.py` | HOST,TARGET |
 | 34 | connection DoS | `scripts/ble_busy.py` | HOST,TARGET |
 | 35 | pairing flood | `scripts/pairing_req_multiple.py` | HOST,TARGET |
-| 36 | write fuzzer | `scripts/thor.py` | HOST,TARGET |
+| 36† | write fuzzer (fuzz mode) | `scripts/thor.py` | HOST,TARGET |
 | 37 | CC2640R2 key | `tools/sweyntooth_bluetooth_low_energy_attacks/CC2640R2_public_key_crash.py` | NRF52-ST,TARGET |
 | 38 | CC connect | `tools/sweyntooth_bluetooth_low_energy_attacks/CC_connection_req_crash.py` | NRF52-ST,TARGET |
 | 39 | DA14580 ATT | `tools/sweyntooth_bluetooth_low_energy_attacks/DA14580_exploit_att_crash.py` | NRF52-ST,TARGET |
@@ -81,6 +81,21 @@ path for each tool.
 | 65 | GATT dump | `tools/ZEPHYR/pylol/adv-connect-wireshark.py` | ZEPHYR-HCI |
 | 66 | GATT register | `tools/ZEPHYR/pylol/connect-gatt-char.py` | ZEPHYR-HCI |
 | 67 | bleak connect | `tools/ZEPHYR/pylol/ble_connect.py` | HOST,TARGET |
+
+## Multi-mode files (†)
+
+**67 entries = 65 unique files.** These two files are launched in two
+different modes, so each mode has its own `-N` number:
+
+| # | File | Mode |
+|---:|---|---|
+| 5 | `scripts/thor.py` | GATT explore only |
+| 36 | `scripts/thor.py` | write fuzzer |
+| 27 | `scripts/oooooooooooo.py` | packet connector |
+| 28 | `scripts/oooooooooooo.py` | length fuzzer (`-l`) |
+
+Everything else appears once. `./run-all-ble.sh -l` marks these rows with `†`
+and prints the same footnote.
 
 ## Hardware tags
 

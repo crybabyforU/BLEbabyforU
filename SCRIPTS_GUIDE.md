@@ -9,6 +9,21 @@ not launched by this runner.
 > therefore appear twice in the catalogue: `thor.py` (#5 explore, #36 write
 > fuzzer) and `oooooooooooo.py` (#27 packet connector, #28 length fuzzer).
 
+### The two multi-mode files
+
+These are **not duplicate entries** and nothing is counted twice by mistake:
+the same file is launched with different arguments for different jobs.
+
+| # | File | Mode | What that mode does |
+|---:|---|---|---|
+| 5 | `scripts/thor.py` | explore | GATT enumeration only, no writes (safe recon) |
+| 27 | `scripts/oooooooooooo.py` | connect | builds its own packet and connects, no fuzzing |
+| 28 | `scripts/oooooooooooo.py` | fuzz (`-l`) | length-field truncation fuzzer with a crash oracle |
+| 36 | `scripts/thor.py` | write fuzz | sweeps write lengths on every writable characteristic |
+
+Everything else appears once. If you just want "how many scripts", the answer
+is **67 catalogue entries / 65 unique files**.
+
 > ⚠️ **Authorization required.** Most entries are DoS, crash, fuzzing or
 > injection tooling. Use them only on devices you own or have explicit written
 > permission to test. Destructive steps require `--yes`.
@@ -137,6 +152,7 @@ Reads raw GATT descriptor bytes at fixed handles (default 19 and 22) and prints 
 
 - **Step id:** `recon/thor-explore`
 - **File:** `scripts/thor.py`
+- **Mode:** explore only (mode 1 of 2 — see #36 for the fuzzing mode)
 - **Hardware:** `HOST, TARGET`
 - **Timeout:** 180s · **Flags:** not flagged
 
@@ -429,6 +445,7 @@ Builds L2CAP and ATT frames by hand inside Link Layer data PDUs and runs service
 
 - **Step id:** `whad/oo-connect`
 - **File:** `scripts/oooooooooooo.py`
+- **Mode:** connect only (mode 1 of 2 — see #28 for the fuzzing mode)
 - **Hardware:** `DONGLE, TARGET`
 - **Timeout:** 150s · **Flags:** not flagged
 
@@ -442,6 +459,7 @@ Runs oooooooooooo.py in connection mode: uses the project's own crafted packet t
 
 - **Step id:** `whad/oo-fuzz`
 - **File:** `scripts/oooooooooooo.py`
+- **Mode:** fuzz mode `-l` (mode 2 of 2 — see #27 for the connect mode)
 - **Hardware:** `DONGLE, TARGET`
 - **Timeout:** 180s · **Flags:** destructive
 
@@ -549,6 +567,7 @@ Pairing/connection flood. Fires rapid connect/pairing requests (0.3 s timeout, 0
 
 - **Step id:** `host/thor-fuzz`
 - **File:** `scripts/thor.py`
+- **Mode:** write fuzzing (mode 2 of 2 — see #5 for the explore-only mode)
 - **Hardware:** `HOST, TARGET`
 - **Timeout:** 240s · **Flags:** destructive, long-running, timeout-ok
 

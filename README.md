@@ -5,9 +5,9 @@ the libraries those scripts actually need — Windows, Ubuntu, and Arch.
 
 ```bash
 # Linux / macOS
-./run-all-ble.sh -l                 # 67 scripts, function + hardware
+./run-all-ble.sh -l                 # 67 entries (65 unique files), function + hardware
 ./run-all-ble.sh -N 2 --yes         # run script #2 (packet builder)
-./run-all-ble-no-whad.sh -l         # 49 scripts, no WHAD
+./run-all-ble-no-whad.sh -l         # 49 entries, no WHAD
 ./run-all-ble.sh --hw-check         # dongle / board report
 
 # Windows (cmd or PowerShell)
@@ -15,6 +15,10 @@ run.bat --hw-check
 run.bat -l
 run.bat --profile safe --target C0:00:00:41:73:AC
 ```
+
+`thor.py` and `oooooooooooo.py` each appear twice because they have two
+modes (explore/fuzz and connect/fuzz). `-l` marks them with `†` and lists both
+`-N` numbers.
 
 **Start here: `MASTER_DOCUMENTATION.md`** — install guides for Windows /
 Ubuntu / Arch, hardware guide, full command reference, and per-OS

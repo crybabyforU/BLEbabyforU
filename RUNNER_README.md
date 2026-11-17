@@ -103,6 +103,19 @@ optional and duplicate entries). `run-all-ble-no-whad.sh` adds
 `-N` numbers refer to that 49-entry list. A chosen script still skips itself
 when its hardware is missing unless you add `--force`.
 
+**67 entries = 65 unique files.** Two scripts are launched in two different
+modes, so each mode has its own `-N` number. `-l` marks those rows with `†`
+and prints the footnote automatically:
+
+| # | File | Mode |
+|---:|---|---|
+| 5 | `scripts/thor.py` | GATT explore only |
+| 36 | `scripts/thor.py` | write fuzzer |
+| 27 | `scripts/oooooooooooo.py` | packet connector |
+| 28 | `scripts/oooooooooooo.py` | length fuzzer (`-l`) |
+
+`SCRIPTS_GUIDE.md` explains every entry in detail.
+
 ### Stage meaning
 
 | Stage | What runs | Dongle |

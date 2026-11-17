@@ -33,7 +33,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
@@ -1060,23 +1060,26 @@ def print_script_catalog(steps: list[Step],
         return
     id_width = max(len(step.id) for step in steps)
     func_width = 18
+    path_counts = Counter(step.path for step in steps)
+    multi_paths = {path for path, count in path_counts.items() if count > 1}
 
     print()
     print(paint("=" * 100, "cyan"))
     print(paint(" BLE LAB SCRIPT CATALOG", "bold"))
     print(paint("=" * 100, "cyan"))
     print(paint(
-        f"{'#':>3}  {'SCRIPT':<{id_width}}  {'FUNCTION':<{func_width}}  "
+        f"{'#':>3}  {'SCRIPT':<{id_width + 1}}  {'FUNCTION':<{func_width}}  "
         f"HARDWARE NEEDED", "bold"))
     print(paint("-" * 100, "cyan"))
     for idx, step in enumerate(steps, 1):
+        mark = "†" if step.path in multi_paths else " "
         if step.hardware:
             hw_text = ",".join(step.hardware)
             hw = paint(hw_text, "yellow")
         else:
             hw_text = "none"
             hw = paint(hw_text, "green")
-        print(f"{idx:>3}  {step.id:<{id_width}}  "
+        print(f"{idx:>3}  {step.id + mark:<{id_width + 1}}  "
               f"{step.summary:<{func_width}}  {hw}")
     print(paint("-" * 100, "cyan"))
 
@@ -1085,6 +1088,18 @@ def print_script_catalog(steps: list[Step],
         print(paint("Hardware legend:", "bold"))
         for tag in used_tags:
             print(f"  {tag:<11} {HW_LABEL.get(tag, '')}")
+        print()
+
+    if multi_paths:
+        print(paint("† Multi-mode files (one script, several catalogue entries):",
+                    "bold"))
+        for path in sorted(multi_paths):
+            entries = [f"#{i} {step.summary}"
+                       for i, step in enumerate(steps, 1)
+                       if step.path == path]
+            print(f"  † {path:<42} {', '.join(entries)}")
+        print(paint("  These are the same file run in different modes, so each "
+                    "mode has its own -N number.", "dim"))
         print()
 
     if skipped_stages:
