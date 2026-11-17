@@ -5,6 +5,10 @@ This guide explains every script that `./run-all-ble.sh -l` can run in
 (BlueToolkit / Sbleedy) are described in `CLASSIC_BR_EDR_SCRIPTS.txt` and are
 not launched by this runner.
 
+> **67 entries = 65 unique files.** Two scripts run in two different modes and
+> therefore appear twice in the catalogue: `thor.py` (#5 explore, #36 write
+> fuzzer) and `oooooooooooo.py` (#27 packet connector, #28 length fuzzer).
+
 > ⚠️ **Authorization required.** Most entries are DoS, crash, fuzzing or
 > injection tooling. Use them only on devices you own or have explicit written
 > permission to test. Destructive steps require `--yes`.
