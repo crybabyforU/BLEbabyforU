@@ -57,8 +57,9 @@ Replace it with your own device's MAC everywhere below.
   ble-runs/<timestamp>/       one folder per real run: runner.log,
                               summary.json, summary.md, logs/, work/.
   crybabyforu/                a portable copy of the lab (runner + scripts +
-                              the tools the BLE runner uses). Its README and
-                              SCRIPTS_BY_FUNCTION.md are useful too, but note:
+                              the tools the BLE runner uses). Start with its
+                              docs/README.md and docs/SCRIPTS_GUIDE.md; note:
+
                               scripts/check.sh still points at ~/ble-lab.
 
 Reference text files (read-only documentation, nothing executes them):

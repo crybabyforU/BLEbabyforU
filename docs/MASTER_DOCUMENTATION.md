@@ -84,12 +84,16 @@ crybabyforu/
 ├── requirements-windows.txt     # Windows Python packages (no D-Bus deps)
 ├── requirements-freeze.txt      # exact original lab package list
 │
-├── MASTER_DOCUMENTATION.md      # ← this file
-├── RUNNER_README.md             # deep runner docs (flags, internals)
-├── SCRIPTS_BY_FUNCTION.md       # script number → function → hardware map
-├── SCRIPTS_GUIDE.md             # detailed what-every-script-does guide
-├── HOW_TO_USE_SCRIPTS.txt       # long-form usage examples for every script
-├── README.md                    # short overview
+├── docs/                        # every guide and catalog
+│   ├── README.md                # documentation index
+│   ├── MASTER_DOCUMENTATION.md  # ← this file
+│   ├── RUNNER_README.md         # deep runner docs (flags, internals)
+│   ├── SCRIPTS_GUIDE.md         # detailed what-every-script-does guide
+│   ├── SCRIPTS_BY_FUNCTION.md   # script number → function → hardware map
+│   ├── HOW_TO_USE_SCRIPTS.txt   # long-form usage examples for every script
+│   ├── ALL_SCRIPTS_ATTACKS.txt  # master attack inventory
+│   ├── BLE_SCRIPTS.txt …        # BLE/classic inventories + hardware matrix
+│   └── SCRIPTS_REPORT.txt       # per-script attack-use notes
 │
 ├── scripts/                     # the lab scripts + runner + doctor
 │   ├── run_all_ble.py           # THE RUNNER (cross-platform, stdlib only)
@@ -527,7 +531,7 @@ needed.
 **Q: Where are the individual scripts documented?**
 `SCRIPTS_GUIDE.md` explains what every BLE script does (with hardware,
 flags and a run command), `SCRIPTS_BY_FUNCTION.md` is the numbered
-one-line map, and `ble_scripts_report.txt` has the attack-use notes.
+one-line map, and `SCRIPTS_REPORT.txt` has the attack-use notes.
 `./run-all-ble.sh -l` prints the same catalogue live.
 
 **Q: Is firmware flashing included?**

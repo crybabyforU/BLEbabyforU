@@ -1,11 +1,15 @@
 # BLE LAB — MASTER SCRIPTS REPORT
 
+> Historical report written for the original lab. Paths such as
+> `~/ble-lab/...` refer to that lab; for the current `crybabyforu/` layout use
+> `docs/README.md` as the index.
+
 Full technical analysis of every script in `scripts/`, the attack strategies they
 implement, the tools they depend on, and the reliability plan.
 
 ```
 ble-lab/
-├── scripts/          21 Python scripts + check.sh + ble_scripts_report.txt (legacy digest)
+├── scripts/          21 Python scripts + check.sh (legacy digest now in docs/SCRIPTS_REPORT.txt)
 ├── tools/            Sniffle, sweyntooth_..., BlueToolkit-upstream, SbleedyGonzales, whadbro, ZEPHYR
 ├── venv/             Python env (whad, scapy, bleak, pyserial) — all scripts run from here
 └── SCRIPTS_MASTER_REPORT.md   (this file)
@@ -286,7 +290,7 @@ The same 36-byte CONNECT_IND template is embedded in scripts 1, 4–8, 10–15,
   extcap, `arm-none-eabi-gcc`, wireshark, nrfutil, `wble-central`.
 - Exit code = number of failures. Uses `$HOME/ble-lab/venv/bin/python`.
 
-#### `ble_scripts_report.txt` (in `scripts/`)
+#### `SCRIPTS_REPORT.txt` (in `docs/`)
 - Legacy one-line-per-script digest (Functionality / BLE Attack Use). Superseded
   by this document but kept for cross-checking.
 

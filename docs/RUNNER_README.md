@@ -320,14 +320,18 @@ For the classic BR/EDR suite, use the BlueToolkit/Sbleedy CLIs directly. See
 crybabyforu/
 ├── run-all-ble.sh              # convenience wrapper (local/parent venv)
 ├── run-all-ble-no-whad.sh      # wrapper: all stages except WHAD
+├── run.bat                     # Windows launcher
 ├── setup-venv.sh               # create a local Python venv
+├── README.md                   # copy overview and what is included
+├── docs/                       # every guide and catalog
+│   ├── README.md               # documentation index
+│   ├── RUNNER_README.md        # this file
+│   ├── SCRIPTS_GUIDE.md        # what every BLE script does
+│   ├── SCRIPTS_BY_FUNCTION.md  # number -> function -> script -> hardware
+│   ├── ALL_SCRIPTS_ATTACKS.txt # source inventory
+│   └── HARDWARE_REQUIRED.txt   # full hardware reference
 ├── scripts/run_all_ble.py      # the runner
 ├── scripts/pycompat/           # startup shim for old Scapy on Python 3.10
-├── SCRIPTS_BY_FUNCTION.md      # number -> function -> script -> hardware
-├── README.md                   # copy overview and what is included
-├── RUNNER_README.md            # this file
-├── ALL_SCRIPTS_ATTACKS.txt     # source inventory
-├── HARDWARE_REQUIRED.txt       # full hardware reference
 ├── tools/                      # Sniffle, SweynTooth, ZEPHYR, whadbro + libs
 └── ble-runs/                   # per-run logs and summaries
 ```

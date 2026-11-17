@@ -1047,7 +1047,7 @@ def print_plan(entries: list[PlanEntry], hw: Optional[Hardware] = None) -> None:
     print(f"{total} step(s) in plan.  (* = timeout is expected for this tool)")
     print(paint(
         "Classic/BR-EDR YAML exploits (BlueToolkit/Sbleedy) are not launched "
-        "by this BLE runner; see RUNNER_README.md.", "dim"))
+        "by this BLE runner; see docs/RUNNER_README.md.", "dim"))
     print()
 
 

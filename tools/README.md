@@ -32,8 +32,8 @@ cd tools/BlueToolkit-upstream   # see install.sh and README.md
 cd tools/SbleedyGonzales        # see README.md, arch-req.sh, sbleedy_installer.sh
 ```
 
-The classic attack catalogue is in `../CLASSIC_BR_EDR_SCRIPTS.txt`; the full
-hardware matrix is in `../HARDWARE_REQUIRED.txt`.
+The classic attack catalogue is in `../docs/CLASSIC_BR_EDR_SCRIPTS.txt`; the full
+hardware matrix is in `../docs/HARDWARE_REQUIRED.txt`.
 
 ## Licenses
 
