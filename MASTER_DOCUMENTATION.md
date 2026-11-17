@@ -87,6 +87,7 @@ crybabyforu/
 ├── MASTER_DOCUMENTATION.md      # ← this file
 ├── RUNNER_README.md             # deep runner docs (flags, internals)
 ├── SCRIPTS_BY_FUNCTION.md       # script number → function → hardware map
+├── SCRIPTS_GUIDE.md             # detailed what-every-script-does guide
 ├── HOW_TO_USE_SCRIPTS.txt       # long-form usage examples for every script
 ├── README.md                    # short overview
 │
@@ -524,9 +525,10 @@ needed.
 `summary.md` is the report you share; `summary.json` is what you parse.
 
 **Q: Where are the individual scripts documented?**
-`SCRIPTS_BY_FUNCTION.md` (number → function → script → hardware) and
-`ble_scripts_report.txt` (what each script does, attack use). `./run-all-ble.sh -l`
-prints the same catalogue live.
+`SCRIPTS_GUIDE.md` explains what every BLE script does (with hardware,
+flags and a run command), `SCRIPTS_BY_FUNCTION.md` is the numbered
+one-line map, and `ble_scripts_report.txt` has the attack-use notes.
+`./run-all-ble.sh -l` prints the same catalogue live.
 
 **Q: Is firmware flashing included?**
 No — by design. The runner only reports which firmware the next stage needs.

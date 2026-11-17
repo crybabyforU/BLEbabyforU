@@ -18,8 +18,9 @@ run.bat --profile safe --target C0:00:00:41:73:AC
 
 **Start here: `MASTER_DOCUMENTATION.md`** — install guides for Windows /
 Ubuntu / Arch, hardware guide, full command reference, and per-OS
-troubleshooting. `RUNNER_README.md` has the deep runner internals and
-`SCRIPTS_BY_FUNCTION.md` the numbered script map.
+troubleshooting. `RUNNER_README.md` has the deep runner internals,
+`SCRIPTS_GUIDE.md` explains what every script does, and
+`SCRIPTS_BY_FUNCTION.md` is the numbered one-line script map.
 
 ---
 
@@ -38,6 +39,7 @@ crybabyforu/
 ├── requirements-freeze.txt         # exact package list from the lab venv
 ├── MASTER_DOCUMENTATION.md         # ← the master doc (start here)
 ├── RUNNER_README.md                # full usage / troubleshooting
+├── SCRIPTS_GUIDE.md                # what every BLE script does (detailed)
 ├── SCRIPTS_BY_FUNCTION.md          # number -> function -> script -> hardware
 ├── HOW_TO_USE_SCRIPTS.txt          # per-script usage examples (long form)
 ├── scripts/                        # all lab scripts + runner + doctor + pycompat
